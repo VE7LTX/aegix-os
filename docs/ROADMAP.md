@@ -3,7 +3,7 @@
 ## Phase 0: Public Scaffold
 
 - README, license, notice, contribution rules, and security policy
-- primary kit, architecture, security model, OpenClaw, and roadmap docs
+- primary kit, CLI/TUI kit, architecture, security model, OpenClaw, and roadmap docs
 - flake with `agentctl` and placeholder `aegix-vm` commands
 - NixOS module skeleton
 - policy and receipt examples
@@ -18,6 +18,8 @@
 - rootless Podman runtime
 - per-agent directories
 - Obsidian vault profile
+- `obsidianctl` vault CLI
+- terminal/TUI operator tools
 - MCP/API server profile
 - plugin registry
 - documented shortcut command registry

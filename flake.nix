@@ -19,6 +19,20 @@
             yq
             ripgrep
             fd
+            bat
+            eza
+            fzf
+            zoxide
+            direnv
+            tmux
+            neovim
+            helix
+            lazygit
+            btop
+            ncdu
+            glow
+            just
+            sd
             podman
             python312
             python312Packages.typer
@@ -31,6 +45,14 @@
           runtimeInputs = [ python pkgs.jq pkgs.ripgrep ];
           text = ''
             exec ${python}/bin/python ${self}/tools/agentctl/agentctl.py "$@"
+          '';
+        };
+
+        packages.obsidianctl = pkgs.writeShellApplication {
+          name = "obsidianctl";
+          runtimeInputs = [ python pkgs.ripgrep ];
+          text = ''
+            exec ${python}/bin/python ${self}/tools/obsidianctl/obsidianctl.py "$@"
           '';
         };
 

@@ -32,6 +32,7 @@ The practical rule is simple:
 The primary kit is tracked in [docs/PRIMARY_KIT.md](docs/PRIMARY_KIT.md). It currently defines:
 
 - AI operator interface
+- CLI/TUI operator kit
 - native system access layer
 - shortcut and command layer
 - workspace layout
@@ -67,6 +68,7 @@ The MVP is not a polished desktop distro. It is a reproducible agent workstation
 
 - Public project README
 - Primary kit definition
+- CLI/TUI kit definition
 - Architecture notes
 - NixOS module skeleton
 - OpenClaw native integration plan
@@ -211,10 +213,11 @@ git clone https://github.com/VE7LTX/aegix-os.git
 cd aegix-os
 nix flake check
 nix run .#agentctl -- --help
+nix run .#obsidianctl -- path
 nix run .#aegix-vm
 ```
 
-`agentctl` and `aegix-vm` are scaffold commands today. They exist to keep the repository evaluable while the appliance implementation lands behind the public interface.
+`agentctl`, `obsidianctl`, and `aegix-vm` are scaffold commands today. They exist to keep the repository evaluable while the appliance implementation lands behind the public interface.
 
 ## License
 

@@ -7,6 +7,7 @@ This document defines the default Aegix OS kit. The purpose is to make the machi
 ### AI operator interface
 
 - `agentctl` CLI/TUI entrypoint
+- `obsidianctl` CLI for Obsidian AI memory
 - agent registry
 - session history
 - receipts
@@ -105,6 +106,8 @@ Project-local agent state should live beside the work:
 
 Obsidian should be included as the standard human-readable AI memory system. It is where humans and agents should both be able to find the system map, operating notes, decisions, and handoff context.
 
+`obsidianctl` is the standard CLI for agents and scripts. The GUI Obsidian app is useful for humans, but the agent path should be file-backed Markdown plus predictable CLI commands.
+
 Default vault target:
 
 ```text
@@ -140,6 +143,12 @@ The vault should contain:
 - troubleshooting notes
 
 Primary agent memory should be written into this vault or into canonical project files first. Vector search and embeddings may index this material, but should not replace it as the source of truth.
+
+### CLI and TUI tool kit
+
+The terminal kit is defined in [CLI_TUI_KIT.md](CLI_TUI_KIT.md). The default profile should include fast, scriptable tools for search, navigation, editing, previews, Git, process inspection, disk usage, and Markdown reading.
+
+The important rule is that agents should prefer documented command access over GUI automation whenever command access is available.
 
 ### OpenClaw managed suite
 
@@ -232,6 +241,20 @@ Default developer profile:
 - fd
 - jq
 - yq
+- bat
+- eza
+- fzf
+- zoxide
+- direnv
+- tmux
+- neovim
+- helix
+- lazygit
+- btop
+- ncdu
+- glow
+- just
+- sd
 - tree-sitter
 - language servers
 - test runners
@@ -334,5 +357,9 @@ The first practical build should make these commands real:
 - `agentctl screenshot`
 - `agentctl logs`
 - `agentctl services`
+- `obsidianctl path`
+- `obsidianctl init`
+- `obsidianctl new`
+- `obsidianctl search`
 
 Each one should start as a small, boring, documented system interface that an agent can call reliably.

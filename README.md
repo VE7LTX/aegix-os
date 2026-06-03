@@ -171,4 +171,6 @@ The commands above are target commands. The current repository is a scaffold and
 
 ## License
 
-MIT for now. Before serious use, reassess whether Apache-2.0 is better for patent coverage and enterprise adoption.
+Apache License 2.0. See `LICENSE` and `NOTICE`.
+
+Apache-2.0 was selected for this project because Aegix is expected to become infrastructure/security software, and Apache-2.0 includes a more explicit patent grant while remaining business-friendly and permissive.

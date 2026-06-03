@@ -132,6 +132,7 @@
   environment.shellAliases = {
     aegix-status = "agentctl status --json";
     aegix-doctor = "agentctl doctor --json";
+    aegix-verify = "agentctl verify --json";
     aegix-paths = "agentctl paths --json";
     aegix-index = "agentctl index --json";
     aegix-search = "agentctl search-index";
@@ -175,7 +176,7 @@
     };
     script = ''
       ${self.packages.${pkgs.system}.obsidianctl}/bin/obsidianctl init --vault /aegix/notes/obsidian
-      ${pkgs.coreutils}/bin/chmod 0770 /aegix/scratch /aegix/projects /aegix/sessions /aegix/receipts /aegix/approvals /aegix/snapshots /aegix/checkpoints /aegix/index /aegix/logs /aegix/runbooks /aegix/notes/obsidian
+      ${pkgs.coreutils}/bin/chmod 0770 /aegix/scratch /aegix/projects /aegix/sessions /aegix/receipts /aegix/approvals /aegix/snapshots /aegix/checkpoints /aegix/index /aegix/logs /aegix/logs/verify /aegix/runbooks /aegix/notes/obsidian
       ${pkgs.coreutils}/bin/cat > /aegix/secrets/handles.json <<'EOF'
 [
   {

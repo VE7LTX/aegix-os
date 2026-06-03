@@ -17,4 +17,6 @@ jobs:
       - name: Check flake
         run: nix flake check
       - name: Check Python scaffold
-        run: python -m py_compile tools/agentctl/agentctl.py
+        run: python -m py_compile tools/agentctl/agentctl.py tools/aegixtui/aegixtui.py tools/aegixai/aegixai.py tools/obsidianctl/obsidianctl.py tools/secretsctl/secretsctl.py
+      - name: Run control-plane integration tests
+        run: python tests/test_agentctl_integration.py

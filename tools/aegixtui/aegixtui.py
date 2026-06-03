@@ -52,6 +52,7 @@ Important paths:
 Important commands:
   agentctl status --json       Aegix operator status
   agentctl doctor --json       Check paths, tools, and failed units
+  agentctl verify --json       Prove sessions, receipts, rollback, index, and AI surfaces
   agentctl paths --json        Show agent-facing filesystem map
   agentctl index --json        Build local file graph and text index
   agentctl search-index Aegix --json
@@ -96,6 +97,15 @@ MENU = [
         agent_prompt=(
             "Start here after boot or after an error. If status is degraded, inspect "
             "writable_failures and systemd_failed before running sessions."
+        ),
+    ),
+    MenuItem(
+        "Verify Control Plane",
+        "Run the Preview v0.2 end-to-end checks for rollback readiness and AI-first features.",
+        ["agentctl", "verify", "--json"],
+        agent_prompt=(
+            "Use this after boot or code changes. It creates preview-safe test state, "
+            "writes a verification report, and proves rollback is metadata-only."
         ),
     ),
     MenuItem(

@@ -76,6 +76,7 @@ The TUI should always preserve a clean console escape path. Pressing `q` exits t
 Preview v0.2 TUI entries:
 
 - `Agent Doctor` checks writable paths, tool entrypoints, and failed systemd units.
+- `Verify Control Plane` runs end-to-end Preview v0.2 checks and writes `/aegix/logs/verify/<report>.json`.
 - `Aegix Paths` shows stable agent-facing paths and quick commands.
 - `Build File Index` writes `/aegix/index` graph, SQLite FTS, and vector registry artifacts.
 - `Search File Index` searches the local SQLite text index.
@@ -90,6 +91,7 @@ Preview v0.2 TUI entries:
 Preview v0.2 CLI commands:
 
 - `agentctl doctor --json`
+- `agentctl verify --json`
 - `agentctl paths --json`
 - `agentctl help run --json`
 - `agentctl index --json`
@@ -129,7 +131,20 @@ Use:
 
 Preview rollback is metadata-only. `agentctl snapshot <session_id> --json` writes snapshot and checkpoint records, and `agentctl rollback <session_id> --json` reports the planned restore behavior without changing files.
 
+`agentctl verify --json` proves this contract by creating a preview-safe session, taking metadata snapshots, running metadata-only rollback planning, and confirming the session artifact is unchanged. Its JSON includes `rollback_mode: metadata_only`.
+
 The seeded policy file `/aegix/policy/rollback.yaml` documents the intended future backends: btrfs/ZFS snapshots, Nix generation rollback, and declarative config patch reversal.
+
+## Verification standard
+
+Use `agentctl verify --json` after boot, after CLI changes, and before demos. It checks:
+
+- required Aegix paths and the preview capabilities policy
+- session, receipt, approval, snapshot, and rollback metadata links
+- file index, SQLite search, graph, vector registry scaffold, and event log
+- `aegixai` status/diagnostics shape and command-suggestion non-execution
+
+Reports are written under `/aegix/logs/verify/` and summarized in `/aegix/logs/events.jsonl`.
 
 ## Command help standard
 

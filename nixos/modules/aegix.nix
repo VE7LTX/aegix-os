@@ -115,6 +115,7 @@ in
       "d ${cfg.root}/checkpoints 0770 aegix aegix - -"
       "d ${cfg.root}/index 0770 aegix aegix - -"
       "d ${cfg.root}/logs 0770 aegix aegix - -"
+      "d ${cfg.root}/logs/verify 0770 aegix aegix - -"
       "f ${cfg.root}/logs/events.jsonl 0660 aegix aegix - -"
       "d ${cfg.root}/screenshots 0750 aegix aegix - -"
       "d ${cfg.root}/runbooks 0770 aegix aegix - -"

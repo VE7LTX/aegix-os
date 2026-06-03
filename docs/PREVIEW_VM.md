@@ -21,6 +21,7 @@ It includes:
 - terminal autologin as `operator`
 - first-entry retro color TUI menu with help, demo sessions, receipts, capabilities, secrets, checks, paths, and shell handoff
 - agent-readable event log at `/aegix/logs/events.jsonl`
+- verification reports under `/aegix/logs/verify`
 - automatic file graph and SQLite search index under `/aegix/index`
 - first-agent runbook at `/aegix/runbooks/first-agent.md`
 - rollback policy scaffold at `/aegix/policy/rollback.yaml`
@@ -51,6 +52,7 @@ Early firmware lines from SeaBIOS, iPXE, or QEMU are expected in this VM preview
 aegixtui
 agentctl status --json
 agentctl doctor --json
+agentctl verify --json
 agentctl paths --json
 agentctl commands --json
 agentctl caps --json
@@ -82,10 +84,13 @@ ls -la /aegix
 
 `agentctl approve`, `agentctl snapshot`, and `agentctl rollback` are metadata scaffolds in this preview. They do not execute dangerous actions or destructive rollback.
 
+`agentctl verify --json` is the canonical health proof for Preview v0.2. It creates a scoped demo session, receipt, approval scaffold, snapshot metadata, rollback plan, file index, graph, and verification report. The report includes `rollback_mode: metadata_only` and confirms rollback planning does not change the session artifact.
+
 Convenience aliases are available in the VM shell:
 
 ```bash
 aegix-doctor
+aegix-verify
 aegix-paths
 aegix-index
 aegix-search Aegix

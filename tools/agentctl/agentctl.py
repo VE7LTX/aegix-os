@@ -261,9 +261,24 @@ COMMAND_GUIDES: dict[str, dict[str, Any]] = {
         "intent": "Report the planned non-destructive rollback behavior for a session.",
         "when_to_use": "Use after inspecting a receipt and creating snapshot metadata.",
         "example": "agentctl rollback <session_id> --json",
-        "json_fields": ["session_id", "status", "planned_behavior", "operator_next_step"],
+        "json_fields": ["session_id", "status", "rollback_mode", "planned_behavior", "operator_next_step"],
         "safety_notes": ["Preview v0.2 never performs destructive rollback; it only explains the plan."],
         "next_steps": ["Get explicit approval before any future destructive rollback implementation."],
+    },
+    "verify": {
+        "intent": "Run the Preview v0.2 control-plane verification harness end to end.",
+        "when_to_use": "Run after boot, before demos, after changing agentctl, or when an agent needs proof that rollback and AI-first surfaces work.",
+        "example": "agentctl verify --json",
+        "json_fields": ["status", "report_id", "checks", "session_id", "report_path"],
+        "safety_notes": [
+            "This creates preview-safe files only under /aegix/scratch and metadata under /aegix.",
+            "Rollback remains metadata-only in v0.2; this command proves rollback traceability, not destructive restore.",
+        ],
+        "next_steps": [
+            "agentctl receipts --json",
+            "agentctl inspect <session_id> --json",
+            "agentctl rollback <session_id> --json",
+        ],
     },
 }
 
@@ -288,6 +303,8 @@ def root_from_args(args: argparse.Namespace) -> Path:
 def paths(root: Path) -> dict[str, Path]:
     return {
         "root": root,
+        "scratch": root / "scratch",
+        "projects": root / "projects",
         "sessions": root / "sessions",
         "receipts": root / "receipts",
         "approvals": root / "approvals",
@@ -297,6 +314,7 @@ def paths(root: Path) -> dict[str, Path]:
         "index": root / "index",
         "runbooks": root / "runbooks",
         "policy": root / "policy",
+        "verify_reports": root / "logs" / "verify",
     }
 
 
@@ -866,11 +884,16 @@ def cmd_caps(args: argparse.Namespace) -> int:
     return emit(args, add_help(policy_payload(root), "caps"))
 
 
-def cmd_run(args: argparse.Namespace) -> int:
-    root = root_from_args(args)
+def create_preview_session(root: Path, agent: str, task: str, workspace_value: str, risk_level: str) -> dict[str, Any]:
+    """Create the same preview session and receipt used by agentctl run.
+
+    Future agents should keep state-changing workflows behind small helpers like
+    this so verification can exercise the real command path without screen
+    scraping CLI output.
+    """
     ensure_dirs(root)
-    session_id = make_session_id(args.agent)
-    workspace = Path(args.workspace).expanduser()
+    session_id = make_session_id(agent)
+    workspace = Path(workspace_value).expanduser()
     if not workspace.is_absolute():
         workspace = root / workspace
 
@@ -898,8 +921,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                     [
                         f"# Aegix Preview Session {session_id}",
                         "",
-                        f"- agent: {args.agent}",
-                        f"- task: {args.task}",
+                        f"- agent: {agent}",
+                        f"- task: {task}",
                         f"- created_at: {created_at}",
                         "",
                         "This file is a preview-safe local write created by agentctl.",
@@ -937,24 +960,25 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     session = {
         "session_id": session_id,
-        "agent": args.agent,
-        "task": args.task,
+        "agent": agent,
+        "task": task,
         "workspace": str(workspace),
-        "risk_level": args.risk_level,
+        "risk_level": risk_level,
         "created_at": created_at,
         "status": status,
         "session_dir": str(session_dir),
     }
     receipt = {
         "session_id": session_id,
-        "agent": args.agent,
-        "task": args.task,
+        "agent": agent,
+        "task": task,
         "workspace": str(workspace),
         "capabilities_used": capabilities_used,
         "actions": actions,
         "verification": verification,
         "rollback": {
             "status": "metadata-only",
+            "rollback_mode": "metadata_only",
             "snapshot_command": f"agentctl snapshot {session_id} --json",
             "rollback_command": f"agentctl rollback {session_id} --json",
             "note": "Preview v0.2 records rollback intent. Destructive rollback is not executed.",
@@ -970,13 +994,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         {
             "command": "run",
             "session_id": session_id,
-            "agent": args.agent,
+            "agent": agent,
             "workspace": str(workspace),
             "status": status,
         },
     )
 
-    payload = {
+    return {
         "session_id": session_id,
         "status": status,
         "session": session,
@@ -984,7 +1008,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         "session_path": str(session_path),
         "receipt_path": str(receipt_path),
     }
-    return emit(args, add_help(payload, "run"), 0 if status != "failed" else 1)
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    root = root_from_args(args)
+    payload = create_preview_session(root, args.agent, args.task, args.workspace, args.risk_level)
+    return emit(args, add_help(payload, "run"), 0 if payload["status"] != "failed" else 1)
 
 
 def cmd_receipts(args: argparse.Namespace) -> int:
@@ -1065,22 +1094,23 @@ def cmd_approvals(args: argparse.Namespace) -> int:
     return emit(args, add_help({"approvals": list_json_files(root / "approvals")}, "approvals"))
 
 
-def cmd_snapshot(args: argparse.Namespace) -> int:
-    root = root_from_args(args)
+def create_snapshot_metadata(root: Path, session_id: str) -> dict[str, Any]:
+    """Write rollback checkpoint metadata without touching user files."""
     ensure_dirs(root)
     created_at = iso_now()
-    snapshot_id = f"{args.session_id}-{uuid.uuid4().hex[:8]}"
+    snapshot_id = f"{session_id}-{uuid.uuid4().hex[:8]}"
     snapshot_path = root / "snapshots" / f"{snapshot_id}.json"
     checkpoint_path = root / "checkpoints" / f"{snapshot_id}.json"
     snapshot = {
         "snapshot_id": snapshot_id,
-        "session_id": args.session_id,
+        "session_id": session_id,
         "created_at": created_at,
         "status": "metadata-only",
+        "rollback_mode": "metadata_only",
         "destructive_actions": False,
         "rollback_available": False,
-        "session_path": str(root / "sessions" / args.session_id / "session.json"),
-        "receipt_path": str(root / "receipts" / f"{args.session_id}.json"),
+        "session_path": str(root / "sessions" / session_id / "session.json"),
+        "receipt_path": str(root / "receipts" / f"{session_id}.json"),
         "checkpoint_path": str(checkpoint_path),
         "restore_plan": [
             "read receipt actions",
@@ -1092,14 +1122,13 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
     }
     write_json(snapshot_path, snapshot)
     write_json(checkpoint_path, snapshot)
-    append_event(root, {"command": "snapshot", "session_id": args.session_id, "status": "metadata-only"})
-    return emit(
-        args,
-        add_help(
-            {"snapshot": snapshot, "snapshot_path": str(snapshot_path), "checkpoint_path": str(checkpoint_path)},
-            "snapshot",
-        ),
-    )
+    append_event(root, {"command": "snapshot", "session_id": session_id, "status": "metadata-only"})
+    return {"snapshot": snapshot, "snapshot_path": str(snapshot_path), "checkpoint_path": str(checkpoint_path)}
+
+
+def cmd_snapshot(args: argparse.Namespace) -> int:
+    root = root_from_args(args)
+    return emit(args, add_help(create_snapshot_metadata(root, args.session_id), "snapshot"))
 
 
 def cmd_snapshots(args: argparse.Namespace) -> int:
@@ -1107,11 +1136,11 @@ def cmd_snapshots(args: argparse.Namespace) -> int:
     return emit(args, add_help({"snapshots": list_json_files(root / "snapshots")}, "snapshots"))
 
 
-def cmd_rollback(args: argparse.Namespace) -> int:
-    root = root_from_args(args)
-    payload = {
-        "session_id": args.session_id,
+def planned_rollback_payload(root: Path, session_id: str) -> dict[str, Any]:
+    return {
+        "session_id": session_id,
         "status": "planned",
+        "rollback_mode": "metadata_only",
         "destructive_actions": False,
         "rollback_executed": False,
         "planned_behavior": [
@@ -1120,11 +1149,447 @@ def cmd_rollback(args: argparse.Namespace) -> int:
             "present rollback plan for operator approval",
             "apply filesystem or declarative config rollback in a later release",
         ],
-        "operator_next_step": f"inspect receipt and snapshot metadata before approving rollback for {args.session_id}",
-        "receipt_path": str(root / "receipts" / f"{args.session_id}.json"),
+        "operator_next_step": f"inspect receipt and snapshot metadata before approving rollback for {session_id}",
+        "receipt_path": str(root / "receipts" / f"{session_id}.json"),
+        "note": "Preview v0.2 rollback is metadata-only and performs no filesystem restore.",
     }
+
+
+def cmd_rollback(args: argparse.Namespace) -> int:
+    root = root_from_args(args)
+    payload = planned_rollback_payload(root, args.session_id)
     append_event(root, {"command": "rollback", "session_id": args.session_id, "status": "planned"})
     return emit(args, add_help(payload, "rollback"))
+
+
+def ensure_policy_file(root: Path) -> Path:
+    policy_path = root / "policy" / "capabilities.yaml"
+    if policy_path.exists():
+        return policy_path
+    policy_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "mode: preview-friendly",
+        "allowed_without_approval:",
+        *[f"  - {item}" for item in PREVIEW_POLICY["allowed_without_approval"]],
+        "local_write_roots:",
+        f"  - {root / 'scratch'}",
+        f"  - {root / 'projects'}",
+        "approval_required:",
+        *[f"  - {item}" for item in PREVIEW_POLICY["approval_required"]],
+        "denied_by_default:",
+        *[f"  - {item}" for item in PREVIEW_POLICY["denied_by_default"]],
+        "",
+    ]
+    policy_path.write_text("\n".join(lines), encoding="utf-8")
+    return policy_path
+
+
+def run_json_process(command: list[str], timeout: int = 60) -> dict[str, Any]:
+    try:
+        result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "ok": False,
+            "exit_code": None,
+            "command": command,
+            "payload": None,
+            "stdout": "",
+            "stderr": "",
+            "error": f"{exc.__class__.__name__}: {exc}",
+        }
+    stdout = result.stdout.strip()
+    payload = None
+    error = None
+    if stdout:
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            error = f"JSONDecodeError: {exc}"
+    return {
+        "ok": result.returncode == 0 and payload is not None,
+        "exit_code": result.returncode,
+        "command": command,
+        "payload": payload,
+        "stdout": stdout[-4000:],
+        "stderr": result.stderr.strip()[-4000:],
+        "error": error,
+    }
+
+
+def run_agentctl_json(root: Path, args: list[str], timeout: int = 60) -> dict[str, Any]:
+    return run_json_process([sys.executable, str(Path(__file__)), "--root", str(root), *args], timeout=timeout)
+
+
+def aegixai_command(root: Path, args: list[str]) -> list[str] | None:
+    executable = shutil.which("aegixai")
+    if executable:
+        return [executable, "--root", str(root), *args]
+    local_script = Path(__file__).resolve().parents[1] / "aegixai" / "aegixai.py"
+    if local_script.exists():
+        return [sys.executable, str(local_script), "--root", str(root), *args]
+    return None
+
+
+def verify_check(
+    checks: list[dict[str, Any]],
+    name: str,
+    passed: bool,
+    details: dict[str, Any] | None = None,
+    *,
+    required: bool = True,
+    warning: bool = False,
+) -> bool:
+    status = "passed" if passed else ("warning" if warning or not required else "failed")
+    checks.append(
+        {
+            "name": name,
+            "status": status,
+            "required": required,
+            "details": details or {},
+        }
+    )
+    return passed or warning or not required
+
+
+def first_file_write(receipt: dict[str, Any]) -> Path | None:
+    for action in receipt.get("actions", []):
+        if action.get("type") == "file.write" and action.get("path"):
+            return Path(action["path"])
+    return None
+
+
+def validate_snapshot_links(root: Path) -> dict[str, Any]:
+    snapshots = list_json_files(root / "snapshots")
+    invalid = []
+    for snapshot in snapshots:
+        session_id = snapshot.get("session_id")
+        if not session_id:
+            invalid.append({"snapshot_id": snapshot.get("snapshot_id"), "reason": "missing session_id"})
+            continue
+        session_path = root / "sessions" / session_id / "session.json"
+        receipt_path = root / "receipts" / f"{session_id}.json"
+        if not session_path.exists() or not receipt_path.exists():
+            invalid.append(
+                {
+                    "snapshot_id": snapshot.get("snapshot_id"),
+                    "session_id": session_id,
+                    "session_exists": session_path.exists(),
+                    "receipt_exists": receipt_path.exists(),
+                }
+            )
+    return {"snapshots_checked": len(snapshots), "invalid": invalid}
+
+
+def validate_session_receipts(root: Path) -> dict[str, Any]:
+    missing = []
+    session_paths = sorted((root / "sessions").glob("*/session.json"))
+    for session_path in session_paths:
+        session_id = session_path.parent.name
+        receipt_path = root / "receipts" / f"{session_id}.json"
+        if not receipt_path.exists():
+            missing.append({"session_id": session_id, "receipt_path": str(receipt_path)})
+    return {"sessions_checked": len(session_paths), "missing_receipts": missing}
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    root = root_from_args(args)
+    ensure_dirs(root)
+    policy_path = ensure_policy_file(root)
+    report_id = f"{utc_now().strftime('%Y%m%dT%H%M%SZ')}-verify-{uuid.uuid4().hex[:8]}"
+    report_path = root / "logs" / "verify" / f"{report_id}.json"
+    checks: list[dict[str, Any]] = []
+
+    required_paths = [
+        root,
+        root / "scratch",
+        root / "projects",
+        root / "sessions",
+        root / "receipts",
+        root / "approvals",
+        root / "snapshots",
+        root / "checkpoints",
+        root / "logs",
+        root / "logs" / "verify",
+        root / "index",
+        root / "policy",
+        policy_path,
+    ]
+    missing_paths = [str(path) for path in required_paths if not path.exists()]
+    verify_check(checks, "required_paths", not missing_paths, {"missing": missing_paths})
+
+    doctor = run_agentctl_json(root, ["doctor", "--json"], timeout=45)
+    doctor_payload = doctor.get("payload") or {}
+    doctor_failed_units = doctor_payload.get("checks", {}).get("systemd_failed", {}).get("failed_count")
+    doctor_failed = bool(doctor_payload.get("writable_failures")) or (
+        doctor_failed_units not in (0, None)
+    )
+    verify_check(
+        checks,
+        "doctor",
+        doctor.get("payload") is not None and not doctor_failed,
+        {
+            "exit_code": doctor.get("exit_code"),
+            "doctor_status": doctor_payload.get("status"),
+            "writable_failures": doctor_payload.get("writable_failures"),
+            "systemd_failed_count": doctor_failed_units,
+            "error": doctor.get("error"),
+        },
+        warning=doctor.get("payload") is not None and doctor_failed_units is None and not doctor_payload.get("writable_failures"),
+    )
+
+    caps = policy_payload(root)
+    verify_check(
+        checks,
+        "capabilities_policy",
+        "service.restart" in caps["approval_required"] and str(root / "scratch") in caps["local_write_roots"],
+        {
+            "mode": caps["mode"],
+            "local_write_roots": caps["local_write_roots"],
+            "approval_required": caps["approval_required"],
+            "policy_file": str(policy_path),
+        },
+    )
+
+    workspace = root / "scratch" / "verify" / report_id
+    session_payload = create_preview_session(
+        root,
+        "verify-agent",
+        "Verify rollback readiness and AI-first control-plane features",
+        str(workspace),
+        "L1",
+    )
+    session_id = session_payload["session_id"]
+    receipt = session_payload["receipt"]
+    artifact_path = first_file_write(receipt)
+    artifact_before = artifact_path.read_text(encoding="utf-8") if artifact_path and artifact_path.exists() else None
+    verify_check(
+        checks,
+        "session_and_receipt",
+        session_payload["status"] == "completed"
+        and Path(session_payload["session_path"]).exists()
+        and Path(session_payload["receipt_path"]).exists(),
+        {
+            "session_id": session_id,
+            "session_path": session_payload["session_path"],
+            "receipt_path": session_payload["receipt_path"],
+            "artifact_path": str(artifact_path) if artifact_path else None,
+            "status": session_payload["status"],
+        },
+    )
+
+    approval = run_agentctl_json(
+        root,
+        ["approve", session_id, "--cap", "service.restart:ollama", "--reason", "verify approval scaffold", "--json"],
+        timeout=30,
+    )
+    approval_payload = approval.get("payload") or {}
+    verify_check(
+        checks,
+        "approval_scaffold",
+        approval_payload.get("approval", {}).get("execution_enabled") is False,
+        {
+            "exit_code": approval.get("exit_code"),
+            "approval": approval_payload.get("approval"),
+            "error": approval.get("error"),
+        },
+    )
+
+    snapshot_payload = create_snapshot_metadata(root, session_id)
+    snapshot = snapshot_payload["snapshot"]
+    verify_check(
+        checks,
+        "snapshot_metadata",
+        snapshot.get("session_id") == session_id
+        and snapshot.get("rollback_mode") == "metadata_only"
+        and Path(snapshot_payload["snapshot_path"]).exists()
+        and Path(snapshot_payload["checkpoint_path"]).exists(),
+        snapshot_payload,
+    )
+
+    rollback_payload = planned_rollback_payload(root, session_id)
+    append_event(root, {"command": "rollback", "session_id": session_id, "status": "planned", "source": "verify"})
+    artifact_after = artifact_path.read_text(encoding="utf-8") if artifact_path and artifact_path.exists() else None
+    verify_check(
+        checks,
+        "rollback_metadata_only",
+        rollback_payload.get("rollback_mode") == "metadata_only"
+        and rollback_payload.get("rollback_executed") is False
+        and artifact_before == artifact_after,
+        {
+            "rollback": rollback_payload,
+            "artifact_path": str(artifact_path) if artifact_path else None,
+            "artifact_preserved": artifact_before == artifact_after,
+        },
+    )
+
+    receipt_validation = validate_session_receipts(root)
+    verify_check(
+        checks,
+        "session_receipt_links",
+        not receipt_validation["missing_receipts"],
+        receipt_validation,
+    )
+
+    snapshot_validation = validate_snapshot_links(root)
+    verify_check(
+        checks,
+        "snapshot_session_links",
+        not snapshot_validation["invalid"],
+        snapshot_validation,
+    )
+
+    index_result = run_agentctl_json(
+        root,
+        ["index", "--scope", str(root / "scratch"), "--max-files", "500", "--json"],
+        timeout=60,
+    )
+    index_payload = index_result.get("payload") or {}
+    verify_check(
+        checks,
+        "file_index",
+        index_payload.get("status") == "completed"
+        and Path(index_payload.get("graph_path", "")).exists()
+        and Path(index_payload.get("sqlite_path", "")).exists(),
+        {
+            "exit_code": index_result.get("exit_code"),
+            "files_indexed": index_payload.get("files_indexed"),
+            "graph_path": index_payload.get("graph_path"),
+            "sqlite_path": index_payload.get("sqlite_path"),
+            "vector_registry_path": index_payload.get("vector_registry_path"),
+            "error": index_result.get("error"),
+        },
+    )
+
+    search_result = run_agentctl_json(root, ["search-index", "Preview", "--limit", "5", "--json"], timeout=30)
+    search_payload = search_result.get("payload") or {}
+    verify_check(
+        checks,
+        "file_index_search",
+        bool(search_payload.get("index_exists")) and len(search_payload.get("matches", [])) >= 1,
+        {
+            "exit_code": search_result.get("exit_code"),
+            "matches": len(search_payload.get("matches", [])),
+            "sqlite_path": search_payload.get("sqlite_path"),
+            "error": search_result.get("error"),
+        },
+    )
+
+    graph_result = run_agentctl_json(root, ["graph", "--json"], timeout=30)
+    graph_payload = graph_result.get("payload") or {}
+    verify_check(
+        checks,
+        "file_graph",
+        graph_payload.get("graph_exists") is True and graph_payload.get("summary", {}).get("files_indexed", 0) >= 1,
+        {
+            "exit_code": graph_result.get("exit_code"),
+            "summary": graph_payload.get("summary"),
+            "graph_path": graph_payload.get("graph_path"),
+            "error": graph_result.get("error"),
+        },
+    )
+
+    events = list_events(root, 50)
+    verify_check(checks, "event_log", len(events) >= 1, {"events_seen": len(events), "log_path": str(root / "logs" / "events.jsonl")})
+
+    ai_status_cmd = aegixai_command(root, ["status", "--json"])
+    if ai_status_cmd is None:
+        verify_check(checks, "aegixai_status", False, {"error": "aegixai command not found"})
+        ai_status = {"payload": None}
+    else:
+        ai_status = run_json_process(ai_status_cmd, timeout=20)
+        ai_status_payload = ai_status.get("payload") or {}
+        verify_check(
+            checks,
+            "aegixai_status",
+            ai_status_payload.get("command") == "status",
+            {
+                "exit_code": ai_status.get("exit_code"),
+                "ollama_available": ai_status_payload.get("ollama_available"),
+                "model_present": ai_status_payload.get("model_present"),
+                "error": ai_status_payload.get("error") or ai_status.get("error"),
+            },
+            warning=ai_status.get("payload") is not None and not ai_status_payload.get("ollama_available"),
+        )
+
+    ai_diagnose_cmd = aegixai_command(root, ["diagnose", "--json"])
+    if ai_diagnose_cmd is None:
+        verify_check(checks, "aegixai_diagnose", False, {"error": "aegixai command not found"})
+    else:
+        ai_diagnose = run_json_process(ai_diagnose_cmd, timeout=75)
+        ai_diagnose_payload = ai_diagnose.get("payload") or {}
+        verify_check(
+            checks,
+            "aegixai_diagnose",
+            ai_diagnose_payload.get("command") == "diagnose",
+            {
+                "exit_code": ai_diagnose.get("exit_code"),
+                "ollama_available": ai_diagnose_payload.get("ollama_available"),
+                "likely_issue": ai_diagnose_payload.get("likely_issue"),
+                "error": ai_diagnose_payload.get("ollama_error") or ai_diagnose.get("error"),
+            },
+            warning=ai_diagnose.get("payload") is not None and not ai_diagnose_payload.get("ollama_available"),
+        )
+
+    ai_command_cmd = aegixai_command(
+        root,
+        ["--timeout", "1", "--num-predict", "24", "command", "inspect the system", "--json"],
+    )
+    if ai_command_cmd is None:
+        verify_check(checks, "aegixai_command_safety", False, {"error": "aegixai command not found"})
+    else:
+        ai_command = run_json_process(ai_command_cmd, timeout=10)
+        ai_command_payload = ai_command.get("payload") or {}
+        verify_check(
+            checks,
+            "aegixai_command_safety",
+            ai_command_payload.get("command") == "command" and ai_command_payload.get("executed") is False,
+            {
+                "exit_code": ai_command.get("exit_code"),
+                "executed": ai_command_payload.get("executed"),
+                "error": ai_command_payload.get("error") or ai_command.get("error"),
+            },
+            warning=ai_command.get("payload") is not None and ai_command_payload.get("executed") is False,
+        )
+
+    failed = [check for check in checks if check["status"] == "failed" and check["required"]]
+    warnings = [check for check in checks if check["status"] == "warning"]
+    status = "passed" if not failed else "failed"
+    report = {
+        "command": "verify",
+        "status": status,
+        "version": VERSION,
+        "root": str(root),
+        "report_id": report_id,
+        "created_at": iso_now(),
+        "session_id": session_id,
+        "rollback_mode": "metadata_only",
+        "checks": checks,
+        "summary": {
+            "passed": sum(1 for check in checks if check["status"] == "passed"),
+            "warnings": len(warnings),
+            "failed": len(failed),
+        },
+        "report_path": str(report_path),
+        "operator_next_steps": [
+            f"agentctl inspect {session_id} --json",
+            f"agentctl rollback {session_id} --json",
+            "agentctl receipts --json",
+        ],
+    }
+    write_json(report_path, report)
+    append_event(
+        root,
+        {
+            "command": "verify",
+            "status": status,
+            "report_id": report_id,
+            "session_id": session_id,
+            "warnings": len(warnings),
+            "failed": len(failed),
+            "report_path": str(report_path),
+        },
+    )
+    return emit(args, add_help(report, "verify"), 0 if status == "passed" else 1)
 
 
 def cmd_scaffold(args: argparse.Namespace) -> int:
@@ -1285,6 +1750,15 @@ Use agentctl help <command> --json for command-specific guidance.
     add_json_flag(rollback)
     rollback.set_defaults(func=cmd_rollback)
 
+    verify = subparsers.add_parser(
+        "verify",
+        help="run Preview v0.2 control-plane verification",
+        description=guide_for("verify")["intent"],
+        epilog=f"Example: {guide_for('verify')['example']}",
+    )
+    add_json_flag(verify)
+    verify.set_defaults(func=cmd_verify)
+
     for command in COMMANDS:
         if command in {
             "status",
@@ -1305,6 +1779,7 @@ Use agentctl help <command> --json for command-specific guidance.
             "snapshot",
             "snapshots",
             "rollback",
+            "verify",
         }:
             continue
         scaffold = subparsers.add_parser(command, help=f"{command} scaffold")

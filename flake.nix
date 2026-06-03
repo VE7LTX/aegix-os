@@ -122,6 +122,22 @@
         };
 
         packages.default = self.packages.${system}.agentctl;
+
+        checks.agentctl-integration = pkgs.runCommand "aegix-agentctl-integration" {
+          nativeBuildInputs = [ python ];
+        } ''
+          cp -r ${self} source
+          chmod -R u+w source
+          cd source
+          ${python}/bin/python -m py_compile \
+            tools/agentctl/agentctl.py \
+            tools/aegixtui/aegixtui.py \
+            tools/aegixai/aegixai.py \
+            tools/obsidianctl/obsidianctl.py \
+            tools/secretsctl/secretsctl.py
+          ${python}/bin/python tests/test_agentctl_integration.py
+          touch $out
+        '';
       }
     ) // {
       nixosModules.aegix = import ./nixos/modules/aegix.nix;

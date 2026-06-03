@@ -63,6 +63,14 @@
           '';
         };
 
+        packages.secretsctl = pkgs.writeShellApplication {
+          name = "secretsctl";
+          runtimeInputs = [ python ];
+          text = ''
+            exec ${python}/bin/python ${self}/tools/secretsctl/secretsctl.py "$@"
+          '';
+        };
+
         packages.aegixtui = pkgs.writeShellApplication {
           name = "aegixtui";
           runtimeInputs = [ python pkgs.ncurses ];

@@ -46,6 +46,14 @@ Agents should not receive raw long-lived secrets. They should receive short-live
 
 Every secret use should be recorded with agent, session, capability, destination, and result.
 
+The preview operator surface is `secretsctl`:
+
+- `secretsctl status --json`
+- `secretsctl handles --json`
+- `secretsctl policy --json`
+
+These commands must return metadata and handles only. They must not print raw secret values.
+
 ## Memory
 
 Primary memory must be inspectable files: Markdown, YAML, JSONL, SQLite, and Git-tracked project notes. Vector indexes may exist, but only as indexes over canonical files.

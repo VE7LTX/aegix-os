@@ -54,6 +54,7 @@
     Quick checks:
       aegixtui
       agentctl status --json
+      secretsctl status --json
       codexcli --version
       obsidianctl path --json
       obsidianctl search Aegix --json
@@ -84,6 +85,7 @@
     self.packages.${pkgs.system}.codex
     self.packages.${pkgs.system}.codexcli
     self.packages.${pkgs.system}.obsidianctl
+    self.packages.${pkgs.system}.secretsctl
     bashInteractive
     bat
     btop
@@ -141,6 +143,28 @@
     };
     script = ''
       ${self.packages.${pkgs.system}.obsidianctl}/bin/obsidianctl init --vault /aegix/notes/obsidian
+      ${pkgs.coreutils}/bin/cat > /aegix/secrets/handles.json <<'EOF'
+[
+  {
+    "handle": "codex.operator.auth",
+    "purpose": "Codex CLI operator authentication state",
+    "raw_value_access": false,
+    "status": "managed-by-tool-cache"
+  },
+  {
+    "handle": "openclaw.operator.auth",
+    "purpose": "OpenClaw operator authentication placeholder",
+    "raw_value_access": false,
+    "status": "planned"
+  },
+  {
+    "handle": "hubspot.crm.proxy",
+    "purpose": "Scoped CRM API proxy placeholder",
+    "raw_value_access": false,
+    "status": "planned"
+  }
+]
+EOF
       ${pkgs.coreutils}/bin/cat > /aegix/notes/obsidian/00-inbox/aegix-preview.md <<'EOF'
 # Aegix Preview
 
@@ -152,6 +176,8 @@ Try:
 aegixtui
 agentctl status --json
 agentctl commands --json
+secretsctl status --json
+secretsctl handles --json
 codexcli --version
 obsidianctl path --json
 obsidianctl search Aegix --json

@@ -18,6 +18,7 @@ COMMANDS = [
     "approve",
     "rollback",
     "receipts",
+    "secrets",
     "notes",
     "codex",
     "openclaw",

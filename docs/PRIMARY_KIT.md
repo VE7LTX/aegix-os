@@ -9,6 +9,7 @@ This document defines the default Aegix OS kit. The purpose is to make the machi
 - `agentctl` CLI/TUI entrypoint
 - `aegixtui` first-entry operator menu
 - `obsidianctl` CLI for Obsidian AI memory
+- `secretsctl` CLI for secret handles, status, and policy
 - `codexcli` CLI for Codex-assisted code and system work
 - agent registry
 - session history
@@ -161,6 +162,8 @@ The important rule is that agents should prefer documented command access over G
 The first operator login should open `aegixtui`, a console home screen that shows help, common actions, core health checks, important paths, and a clear exit to the shell.
 
 Codex CLI should be available through the Aegix-managed `codexcli` command, with `codex` kept as a compatibility alias. In the final system, Codex should run as an agent/tool client inside Aegix capability boundaries rather than as an unconstrained host shell.
+
+Secret management should be visible from the first-entry TUI through `secretsctl`. The preview surface should show status, handles, and policy, never raw secret values.
 
 ### OpenClaw managed suite
 
@@ -393,6 +396,7 @@ The first practical build should make these commands real:
 - `agentctl commands`
 - `agentctl inspect`
 - `agentctl receipts`
+- `agentctl secrets`
 - `agentctl notes`
 - `agentctl codex`
 - `agentctl openclaw`

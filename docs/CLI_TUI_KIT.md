@@ -9,6 +9,7 @@ These should be available in the base developer/operator profile:
 - `agentctl` for Aegix sessions, receipts, commands, approvals, and system views
 - `aegixtui` for the first-entry operator home screen
 - `obsidianctl` for Obsidian AI memory vault operations
+- `secretsctl` for secret handles, status, and policy without exposing values
 - `codexcli` for Codex CLI access through the Aegix operator environment
 - `codex` as a compatibility alias for operators who expect the upstream command name
 - `git` for source control
@@ -67,9 +68,22 @@ Planned Aegix policy behavior:
 - where are the important files?
 - which commands should I run first?
 - are core services healthy?
+- what secret handles exist?
 - how do I get back to the shell?
 
 The TUI should always preserve a clean console escape path. Pressing `q` exits to the normal shell, and `aegixtui` can be launched again manually.
+
+## Secrets CLI standard
+
+`secretsctl` is the preview operator surface for secret management. It should report secret-store status, known handles, and policy rules, but it must not print raw secret values.
+
+Preview commands:
+
+- `secretsctl status --json`
+- `secretsctl handles --json`
+- `secretsctl policy --json`
+
+The final backend should be `secretsd` with age/sops/pass-compatible storage and scoped broker calls for agents.
 
 ## Agent rules
 

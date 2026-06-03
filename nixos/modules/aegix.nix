@@ -106,6 +106,7 @@ in
       "d ${cfg.root}/policy 0750 aegix aegix - -"
       "d ${cfg.root}/projects 0750 aegix aegix - -"
       "d ${cfg.root}/receipts 0750 aegix aegix - -"
+      "d ${cfg.root}/secrets 0750 aegix aegix - -"
       "d ${cfg.root}/appliances 0750 aegix aegix - -"
       "d ${cfg.root}/snapshots 0750 aegix aegix - -"
       "d ${cfg.root}/logs 0750 aegix aegix - -"

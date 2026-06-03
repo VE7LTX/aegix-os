@@ -11,6 +11,7 @@ It includes:
 - `aegixtui`
 - `codexcli` and `codex`
 - `obsidianctl`
+- `secretsctl`
 - Obsidian vault folders
 - Ollama service profile
 - database/vector/time-series tool suite
@@ -44,6 +45,8 @@ Early firmware lines from SeaBIOS, iPXE, or QEMU are expected in this VM preview
 aegixtui
 agentctl status --json
 agentctl commands --json
+secretsctl status --json
+secretsctl handles --json
 codexcli --version
 obsidianctl path --json
 obsidianctl search Aegix --json

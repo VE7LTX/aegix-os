@@ -35,9 +35,11 @@ Important paths:
   /aegix/notes/obsidian        File-backed AI memory vault
   /aegix/projects              Project workspaces
   /aegix/receipts              Action receipts
+  /aegix/secrets               Secret metadata and handles, not raw values
 
 Important commands:
   agentctl status --json       Aegix operator status
+  secretsctl status --json     Secret store status without values
   codexcli --version           Codex CLI entrypoint
   obsidianctl path --json      Obsidian memory vault path
   systemctl status ollama      Local model service status
@@ -71,6 +73,21 @@ MENU = [
         "Codex CLI",
         "Check the Aegix-managed Codex CLI entrypoint.",
         ["codexcli", "--version"],
+    ),
+    MenuItem(
+        "Secrets Manager",
+        "Show secret store status. This never prints raw secret values.",
+        ["secretsctl", "status", "--json"],
+    ),
+    MenuItem(
+        "Secret Handles",
+        "List known secret handles and purposes without exposing values.",
+        ["secretsctl", "handles", "--json"],
+    ),
+    MenuItem(
+        "Secrets Policy",
+        "Show the Aegix rules for secret handling and brokered access.",
+        ["secretsctl", "policy", "--json"],
     ),
     MenuItem(
         "Obsidian AI Memory",

@@ -1,0 +1,20 @@
+receipt_id: 2026-06-02T21-14-33Z-openclaw-agent-0001
+agent: openclaw-agent
+task: Install workspace skill in isolated mode
+workspace: /aegix/agents/openclaw-agent/workspace
+capabilities_used:
+  - files.write:/aegix/agents/openclaw-agent/workspace/skills
+  - shell:agentctl verify openclaw-agent
+  - network:github.com
+external_effects: []
+actions:
+  - created: /aegix/agents/openclaw-agent/workspace/skills/example
+verification:
+  command: agentctl verify openclaw-agent
+  result: passed
+diff:
+  files_changed:
+    - /aegix/agents/openclaw-agent/workspace/skills/example
+rollback:
+  snapshot: aegix-snapshot-0001
+status: committed

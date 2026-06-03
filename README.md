@@ -2,7 +2,7 @@
 
 **Aegix OS** is a security-first Linux agent appliance for running local AI agents with explicit capabilities, reversible actions, file-backed memory, and inspectable receipts.
 
-> Not “Linux with an AI chatbot installed.” Aegix is an operating model for agents as first-class local actors: scoped authority, mandatory verification, and no silent external side effects.
+> Not "Linux with an AI chatbot installed." Aegix is an operating model for agents as first-class local actors: scoped authority, mandatory verification, and no silent external side effects.
 
 ## Status
 
@@ -87,7 +87,7 @@ Fedora bootc is a strong later path for building bootable OCI-derived systems. T
 
 ## OpenClaw position
 
-OpenClaw should not be treated as “the OS.” It should be treated as a powerful native agent suite running inside Aegix boundaries.
+OpenClaw should not be treated as "the OS." It should be treated as a powerful native agent suite running inside Aegix boundaries.
 
 Aegix should provide:
 
@@ -158,16 +158,17 @@ rollback:
 status: committed
 ```
 
-## Quick local start, planned
+## Quick local start
 
 ```bash
 git clone https://github.com/VE7LTX/aegix-os.git
 cd aegix-os
 nix flake check
+nix run .#agentctl -- --help
 nix run .#aegix-vm
 ```
 
-The commands above are target commands. The current repository is a scaffold and planning base.
+`agentctl` and `aegix-vm` are scaffold commands today. They exist to keep the repository evaluable while the appliance implementation lands behind the public interface.
 
 ## License
 

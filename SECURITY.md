@@ -4,7 +4,24 @@ This project is experimental and should not be used to grant production agents b
 
 ## Reporting
 
-Open a private advisory if available, or contact the maintainer directly before publishing exploit details.
+Open a private advisory if available, or contact the maintainer before publishing exploit details.
+
+Maintainer contact: VE7LTX on GitHub.
+
+## Supported versions
+
+This project is pre-MVP. Only the `main` branch is in scope for security reports.
+
+## Security review priorities
+
+Reports are especially useful when they identify ways for an agent, tool, integration, or policy gap to bypass:
+
+- capability scoping
+- approval tokens
+- receipt generation
+- rollback controls
+- secret mediation
+- egress restrictions
 
 ## Non-negotiable security direction
 

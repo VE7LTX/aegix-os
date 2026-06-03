@@ -7,9 +7,10 @@
   };
 
   outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
       let
         pkgs = import nixpkgs { inherit system; };
+        python = pkgs.python312;
       in {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
@@ -27,10 +28,18 @@
 
         packages.agentctl = pkgs.writeShellApplication {
           name = "agentctl";
-          runtimeInputs = [ pkgs.jq pkgs.ripgrep ];
+          runtimeInputs = [ python pkgs.jq pkgs.ripgrep ];
           text = ''
-            echo "Aegix agentctl scaffold"
-            echo "Commands planned: agents, caps, run, diff, approve, rollback, receipts"
+            exec ${python}/bin/python ${self}/tools/agentctl/agentctl.py "$@"
+          '';
+        };
+
+        packages.aegix-vm = pkgs.writeShellApplication {
+          name = "aegix-vm";
+          text = ''
+            echo "Aegix VM scaffold"
+            echo "The NixOS VM profile is not implemented yet."
+            echo "Next target: add nixosConfigurations.aegix-vm and a runnable VM app."
           '';
         };
 

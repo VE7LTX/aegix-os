@@ -1,0 +1,39 @@
+# Roadmap
+
+## Phase 0: Public Scaffold
+
+- README, license, notice, contribution rules, and security policy
+- architecture, security model, OpenClaw, and roadmap docs
+- flake with `agentctl` and placeholder `aegix-vm` commands
+- NixOS module skeleton
+- policy and receipt examples
+- CI that checks flake evaluation and Python syntax when Nix is available
+
+## Phase 1: Local Appliance
+
+- runnable NixOS VM profile
+- `agentctl` command groups
+- `agentd` session runner
+- `capd` capability broker
+- rootless Podman runtime
+- per-agent directories
+- JSONL receipts
+- read-only observer agent
+
+## Phase 2: Managed Agent Suite
+
+- OpenClaw native integration profile
+- MCP-compatible tool gateway behind the broker
+- approval tokens
+- secret broker
+- workspace snapshots
+- local model router
+
+## Phase 3: Hardened Runtime
+
+- per-agent egress policy
+- browser automation isolation
+- microVM tier
+- signed receipts
+- multi-node policy packs
+- dashboard for active agents, diffs, capabilities, secrets, and pending approvals

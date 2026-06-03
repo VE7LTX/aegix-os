@@ -1,0 +1,47 @@
+policy_version: 0.1.0
+agent: openclaw-agent
+trust_tier: managed-suite
+default_runtime_tier: T2
+workspace: /aegix/agents/openclaw-agent/workspace
+memory: /aegix/agents/openclaw-agent/memory
+receipt_store: /aegix/receipts/openclaw-agent
+
+capabilities:
+  files:
+    read:
+      - /aegix/agents/openclaw-agent/workspace
+      - /aegix/agents/openclaw-agent/memory
+    write:
+      - /aegix/agents/openclaw-agent/workspace
+      - /aegix/receipts/openclaw-agent
+  network:
+    allow:
+      - github.com
+    deny:
+      - local_lan
+      - "*"
+  shell:
+    allow:
+      - git status
+      - git diff
+      - agentctl verify openclaw-agent
+    deny:
+      - sudo
+      - rm -rf
+      - curl | sh
+  secrets:
+    read: []
+
+approval_required:
+  - external_write
+  - package_install
+  - service_restart
+  - secret_creation
+  - auth_change
+  - device_access
+
+budget:
+  cloud_llm_usd: 0
+  api_calls: 100
+  browser_minutes: 0
+  runtime_minutes: 30

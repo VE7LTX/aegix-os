@@ -140,6 +140,19 @@ print(json.dumps({"message": {"content": ""}}))
         assert fallback_payload["response"].startswith("RAM used:")
         assert fallback_payload["fallback"] == "telemetry"
 
+        vm_specs = subprocess.run(
+            [sys.executable, str(QUERY), "--root", str(root), "--json", "what", "are", "the", "vm", "specs", "this", "instance", "is", "running", "in"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=fallback_env,
+        )
+        assert vm_specs.returncode == 0, vm_specs.stderr
+        vm_specs_payload = json.loads(vm_specs.stdout)
+        assert vm_specs_payload["mode"] == "fallback-system-specs"
+        assert "CPU" in vm_specs_payload["response"] or "Memory" in vm_specs_payload["response"]
+        assert vm_specs_payload["fallback"] == "system-specs"
+
         indexed = subprocess.run(
             [sys.executable, str(REPO / "tools" / "agentctl" / "agentctl.py"), "--root", str(root), "search-index", "ram usage", "--json"],
             check=False,

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import shutil
 import shlex
@@ -104,12 +105,26 @@ def prompt_requests_telemetry(prompt: str) -> bool:
     return bool(re.search(r"\b(ram|memory|load|uptime|swap)\b", prompt, re.IGNORECASE))
 
 
+def prompt_requests_system_specs(prompt: str) -> bool:
+    return bool(re.search(r"\b(vm specs|specs|cpu|cores|hardware|machine|kernel|os)\b", prompt, re.IGNORECASE))
+
+
 def telemetry_context(telemetry: dict[str, Any]) -> str:
     return "\n".join(
         [
             "## Prefetched Local Telemetry",
             "",
             json.dumps(telemetry, indent=2, sort_keys=True),
+        ]
+    )
+
+
+def system_specs_context(specs: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "## Prefetched Local System Specs",
+            "",
+            json.dumps(specs, indent=2, sort_keys=True),
         ]
     )
 
@@ -127,6 +142,27 @@ def format_telemetry_answer(telemetry: dict[str, Any]) -> str:
         parts.append(f"RAM available: {human_bytes(available)}")
     if loadavg:
         parts.append("Load average: " + ", ".join(f"{value:.2f}" for value in loadavg[:3]))
+    return "\n".join(parts)
+
+
+def format_system_specs_answer(specs: dict[str, Any]) -> str:
+    parts = []
+    if specs.get("cpu_logical_cores") is not None:
+        parts.append(f"CPU cores: {specs['cpu_logical_cores']}")
+    if specs.get("memory_total_bytes") is not None:
+        parts.append(f"Memory total: {human_bytes(specs['memory_total_bytes'])}")
+    if specs.get("memory_available_bytes") is not None:
+        parts.append(f"Memory available: {human_bytes(specs['memory_available_bytes'])}")
+    if specs.get("disk_total_bytes") is not None:
+        parts.append(f"Disk total: {human_bytes(specs['disk_total_bytes'])}")
+    if specs.get("disk_free_bytes") is not None:
+        parts.append(f"Disk free: {human_bytes(specs['disk_free_bytes'])}")
+    if specs.get("platform"):
+        parts.append(f"Platform: {specs['platform']}")
+    if specs.get("kernel"):
+        parts.append(f"Kernel: {specs['kernel']}")
+    if specs.get("virtualization"):
+        parts.append(f"Virtualization: {specs['virtualization']}")
     return "\n".join(parts)
 
 
@@ -193,6 +229,75 @@ def collect_telemetry(args: dict[str, Any] | None = None) -> dict[str, Any]:
         "uptime_seconds": float(uptime) if uptime else None,
         "source": "procfs",
     }
+
+
+def collect_system_specs(root: Path | None = None) -> dict[str, Any]:
+    specs: dict[str, Any] = {
+        "system": platform.system(),
+        "release": platform.release(),
+        "version": platform.version(),
+        "machine": platform.machine(),
+        "processor": platform.processor() or None,
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "cpu_logical_cores": os.cpu_count(),
+        "source": "platform",
+    }
+    mem_total = None
+    mem_available = None
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            stat = MEMORYSTATUSEX()
+            stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+                mem_total = int(stat.ullTotalPhys)
+                mem_available = int(stat.ullAvailPhys)
+                specs["source"] = "platform+ctypes"
+        except Exception:
+            pass
+    else:
+        meminfo = parse_meminfo()
+        mem_total = meminfo.get("MemTotal")
+        mem_available = meminfo.get("MemAvailable")
+        if mem_total is not None or mem_available is not None:
+            specs["source"] = "platform+procfs"
+    if mem_total is not None:
+        specs["memory_total_bytes"] = mem_total
+    if mem_available is not None:
+        specs["memory_available_bytes"] = mem_available
+        if mem_total is not None:
+            specs["memory_used_bytes"] = mem_total - mem_available
+    target = root if root is not None else Path.cwd()
+    try:
+        usage = shutil.disk_usage(str(target))
+        specs["disk_total_bytes"] = usage.total
+        specs["disk_used_bytes"] = usage.used
+        specs["disk_free_bytes"] = usage.free
+    except OSError:
+        pass
+    if not sys.platform.startswith("win"):
+        virt = command_result(["systemd-detect-virt", "--vm"], timeout=5)
+        virt_name = (virt.get("stdout") or "").strip()
+        if virt_name and virt.get("exit_code") == 0:
+            specs["virtualization"] = virt_name
+    if not specs.get("virtualization") and platform.system() == "Windows":
+        specs["virtualization"] = os.environ.get("COMPUTERNAME") or None
+    return specs
 
 
 def local_tool_command(executable_name: str, script_relative: str) -> list[str] | None:
@@ -281,6 +386,7 @@ def secretsctl_json(args: list[str], timeout: int = 30) -> dict[str, Any]:
 def tool_catalog() -> list[dict[str, Any]]:
     return [
         {"name": "procfs.telemetry", "description": "Read RAM, load average, and uptime from procfs.", "arguments": {"override_json": "string?"}},
+        {"name": "system.specs", "description": "Read local CPU, memory, disk, and platform specs.", "arguments": {}},
         {"name": "terminal.tail", "description": "Read the current terminal tail note.", "arguments": {}},
         {"name": "agentctl.status", "description": "Show Aegix status and counts.", "arguments": {}},
         {"name": "agentctl.commands", "description": "List the command surface and guidance.", "arguments": {}},
@@ -325,6 +431,7 @@ def query_system_prompt(tool_json: str) -> str:
             "Use tools directly for system state, memory, files, receipts, and local services.",
             "Prefer these tool families when relevant:",
             "- procfs.telemetry for RAM, load, and uptime",
+            "- system.specs for CPU, memory, disk, kernel, and virtualization details",
             "- agentctl.* for status, docs, indexing, receipts, sessions, approvals, snapshots, rollback, and verify",
             "- obsidian.* for durable Markdown memory",
             "- secrets.* for handle-based secret metadata only",
@@ -395,6 +502,8 @@ def execute_tool(root: Path, tool_call: dict[str, Any], tail_path: Path) -> dict
     arguments = tool_arguments(tool_call)
     if name == "procfs.telemetry":
         return collect_telemetry(arguments if isinstance(arguments, dict) else {})
+    if name == "system.specs":
+        return collect_system_specs(root)
     if name == "terminal.tail":
         return {"path": str(tail_path), "content": redact(read_text(tail_path))}
     if name == "agentctl.status":
@@ -682,7 +791,13 @@ def main(argv: list[str] | None = None) -> int:
     if not history_text and os.environ.get("HISTCMD"):
         history_text = redact(os.environ["HISTCMD"])
     telemetry = collect_telemetry() if prompt_requests_telemetry(prompt) else None
-    prefetch_text = telemetry_context(telemetry) if telemetry else ""
+    system_specs = collect_system_specs(root) if prompt_requests_system_specs(prompt) else None
+    prefetch_blocks = []
+    if telemetry:
+        prefetch_blocks.append(telemetry_context(telemetry))
+    if system_specs:
+        prefetch_blocks.append(system_specs_context(system_specs))
+    prefetch_text = "\n\n".join(prefetch_blocks)
 
     write_tail_file(
         tail_path,
@@ -729,8 +844,21 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
         fallback_mode = "telemetry"
+    elif not response and system_specs is not None:
+        response = format_system_specs_answer(system_specs)
+        tool_trace.insert(
+            0,
+            {
+                "call": {"name": "system.specs", "arguments": {}},
+                "observation": system_specs,
+                "prefetched": True,
+            },
+        )
+        fallback_mode = "system-specs"
     if not response and error:
         response = error
+    if fallback_mode:
+        error = None
 
     vault = obsidian_vault(root)
     vault.mkdir(parents=True, exist_ok=True)
@@ -748,7 +876,7 @@ def main(argv: list[str] | None = None) -> int:
         "tail_path": str(tail_path),
         "note_path": str(note_path),
         "model": args.model,
-        "mode": "fallback-telemetry" if fallback_mode else "tool-calling",
+        "mode": f"fallback-{fallback_mode}" if fallback_mode else "tool-calling",
         "tool_trace": tool_trace,
         "backend": backend_payload,
         "index_result": index_result,

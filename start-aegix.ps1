@@ -2,8 +2,8 @@ param(
   [switch]$Restart,
   [switch]$Gpu,
   [switch]$Ollama,
-  [int]$MemoryMB = 24576,
-  [int]$Cpus = 6
+  [int]$MemoryMB = 4096,
+  [int]$Cpus = 2
 )
 
 $ErrorActionPreference = "Stop"

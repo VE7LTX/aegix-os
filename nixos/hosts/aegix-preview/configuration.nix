@@ -10,14 +10,13 @@
 
   time.timeZone = "America/Vancouver";
 
-  boot.consoleLogLevel = 3;
+  boot.consoleLogLevel = 4;
   boot.loader.grub.devices = [ "nodev" ];
   boot.kernelParams = [
-    "quiet"
-    "loglevel=3"
-    "rd.systemd.show_status=auto"
-    "systemd.show_status=auto"
-    "udev.log_level=3"
+    "loglevel=4"
+    "rd.systemd.show_status=1"
+    "systemd.show_status=1"
+    "udev.log_level=4"
   ];
 
   fileSystems."/" = {
@@ -89,19 +88,26 @@
         printf '\n'
       fi
       if [ -z "$AEGIX_NO_TUI" ] && command -v aegixtui >/dev/null 2>&1; then
-        printf 'Press Space to continue to the operator TUI. Press q to return to shell later.\n'
-        printf '\n'
-        while :; do
-          if IFS= read -r -n 1 key; then
-            if [ "$key" = " " ]; then
+        lines="$(tput lines 2>/dev/null || echo 0)"
+        cols="$(tput cols 2>/dev/null || echo 0)"
+        if [ "$lines" -ge 20 ] && [ "$cols" -ge 80 ]; then
+          printf 'Press Space to continue to the operator TUI. Press q to return to shell later.\n'
+          printf '\n'
+          while :; do
+            if IFS= read -r -n 1 key; then
+              if [ "$key" = " " ]; then
+                break
+              fi
+            else
               break
             fi
-          else
-            break
-          fi
-        done
-        printf '\n'
-        aegixtui
+          done
+          printf '\n'
+          aegixtui
+        else
+          printf 'Skipping automatic TUI launch because the terminal size is too small for a stable render.\n'
+          printf 'Run `aegixtui` after resizing the window.\n'
+        fi
       fi
     fi
 
@@ -204,8 +210,18 @@ EOF
 
   virtualisation.vmVariant = {
     virtualisation = {
-      memorySize = 8192;
-      cores = 4;
+      memorySize =
+        let
+          envMemory = builtins.getEnv "AEGIX_VM_MEMORY_MB";
+          fallbackMemory = 24576;
+        in
+          if envMemory == "" then fallbackMemory else builtins.toInt envMemory;
+      cores =
+        let
+          envCores = builtins.getEnv "AEGIX_VM_CPUS";
+          fallbackCores = 6;
+        in
+          if envCores == "" then fallbackCores else builtins.toInt envCores;
       diskSize = 16384;
       graphics = false;
     };
@@ -433,7 +449,7 @@ systemctl status aegix-agentd
 systemctl status ollama
 ls -la /aegix
 ```
-      EOF
+EOF
     '';
   };
 

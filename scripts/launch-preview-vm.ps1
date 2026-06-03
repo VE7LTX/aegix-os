@@ -12,6 +12,9 @@ $wslRepo = wsl -d Ubuntu-22.04 -- wslpath -a "$repo"
 $hostFallbackLimitMB = 16384
 $minMemoryMB = 512
 $preferredMemoryMB = $MemoryMB
+$kvmAvailable = $false
+$emulationMemoryCeilingMB = if ($Ollama) { 6144 } else { 4096 }
+$emulationCpuCeiling = 2
 
 if ($MemoryMB -lt $minMemoryMB) { throw "MemoryMB must be >= $minMemoryMB." }
 if ($Cpus -lt 1) { throw "Cpus must be >= 1." }
@@ -41,12 +44,35 @@ try {
   $hostFallbackLimitMB = 16384
 }
 
+try {
+  & wsl -d Ubuntu-22.04 -- bash -lc "test -r /dev/kvm -a -w /dev/kvm"
+  if ($LASTEXITCODE -eq 0) {
+    $kvmAvailable = $true
+  }
+} catch {
+  $kvmAvailable = $false
+}
+
+if (-not $kvmAvailable) {
+  Write-Host "KVM is not available in this WSL session. Aegix will use QEMU software emulation."
+  if ($Cpus -gt $emulationCpuCeiling) {
+    Write-Host "Clamping CPUs from $Cpus to $emulationCpuCeiling for TCG boot stability."
+    $Cpus = $emulationCpuCeiling
+  }
+  if ($preferredMemoryMB -gt $emulationMemoryCeilingMB) {
+    Write-Host "Clamping memory from $preferredMemoryMB MB to $emulationMemoryCeilingMB MB for software emulation."
+    $preferredMemoryMB = $emulationMemoryCeilingMB
+  }
+}
+
 $safeHostLimitMB = [Math]::Max($minMemoryMB, [Math]::Floor($hostFallbackLimitMB * 0.80))
 if ($preferredMemoryMB -gt $safeHostLimitMB) {
   Write-Host "Requested memory ($preferredMemoryMB MB) exceeds host-safe WSL limit ($safeHostLimitMB MB)."
   Write-Host "Clamping launch memory to $safeHostLimitMB MB."
   $preferredMemoryMB = $safeHostLimitMB
 }
+
+$effectiveMemoryMB = $preferredMemoryMB
 
 function Get-MemoryAttempts {
   param([int]$StartMB, [int]$MinimumMB)
@@ -136,12 +162,15 @@ exec "$run_script_target"
   }
 }
 
-Invoke-AegixBuild -Package $vmPackage -WslRepo $wslRepo -Memory $MemoryMB -Cpus $Cpus
+Invoke-AegixBuild -Package $vmPackage -WslRepo $wslRepo -Memory $effectiveMemoryMB -Cpus $Cpus
 
-$retryCandidates = @(Get-MemoryAttempts -StartMB $preferredMemoryMB -MinimumMB $minMemoryMB)
+$retryCandidates = @(Get-MemoryAttempts -StartMB $effectiveMemoryMB -MinimumMB $minMemoryMB)
 $lastAttempt = $null
 foreach ($candidate in $retryCandidates) {
   Write-Host "Starting preview VM with $candidate MB (CPUs: $Cpus) ..."
+  if (-not $kvmAvailable) {
+    Write-Host "Serial boot can take 1-3 minutes under TCG. Boot logs should appear below."
+  }
   $result = Invoke-AegixRun -Memory $candidate -Cpus $Cpus -WslRepo $wslRepo
   if ($result.ExitCode -eq 0) {
     exit 0

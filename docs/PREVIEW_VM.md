@@ -34,6 +34,8 @@ It includes:
 ```bash
 nix run .#aegix-vm
 nix run .#aegix-vm-gpu
+nix run .#aegix-vm-ollama
+nix run .#aegix-vm-gpu-ollama
 ```
 
 ## Run
@@ -122,7 +124,13 @@ From Windows, use Ubuntu WSL. If Nix is not installed yet, run this first in a v
 Then launch the preview:
 
 ```powershell
-.\scripts\launch-preview-vm.ps1
+.\start-aegix.ps1
+```
+
+If you need to invoke the launch worker directly, use PowerShell `-File` invocation:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\launch-preview-vm.ps1
 ```
 
 The script runs `nix run .#aegix-vm` inside Ubuntu WSL from this repository path.
@@ -131,12 +139,37 @@ Use `-Gpu` for a graphics-enabled build profile:
 ```
 .\start-aegix.ps1 -Gpu
 ```
+Use `-Ollama` for a higher-memory profile for local model work.
+
+```
+.\start-aegix.ps1 -Ollama
+```
+
+Use both for GPU display + higher-memory Ollama profile.
+
+```
+.\start-aegix.ps1 -Gpu -Ollama
+```
+
+Override RAM/CPU for this launch:
+
+```powershell
+.\start-aegix.ps1 -Ollama -MemoryMB 32768 -Cpus 8
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\launch-preview-vm.ps1 -MemoryMB 32768 -Cpus 8
+```
+
+Those values are exported as `AEGIX_VM_MEMORY_MB` and `AEGIX_VM_CPUS` during the VM build.
+
+Note on passthrough:
+In WSL-based launch mode, the GPU profile is currently graphics-capable only.
+Full GPU passthrough (VFIO) is planned for native Linux host execution paths.
 
 Convenience launchers are also available at the repository root:
 
 ```powershell
 .\start-aegix.ps1
 .\start-aegix.ps1 -Restart
+.\start-aegix.ps1 -Restart -Ollama
 ```
 
 `start-aegix.cmd` is available for double-click or Command Prompt use. On this machine, the desktop shortcut `Start Aegix OS Preview` points at `start-aegix.ps1`.

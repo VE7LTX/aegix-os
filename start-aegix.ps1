@@ -1,6 +1,9 @@
 param(
   [switch]$Restart,
-  [switch]$Gpu
+  [switch]$Gpu,
+  [switch]$Ollama,
+  [int]$MemoryMB = 24576,
+  [int]$Cpus = 6
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,8 +42,42 @@ if ($Restart) {
 }
 
 Write-Host "Starting Aegix preview VM..."
-if ($Gpu) {
-  & $launchScript -Gpu
-} else {
-  & $launchScript
+Write-Host "Memory (MB): $MemoryMB"
+Write-Host "CPUs:      : $Cpus"
+if ($Ollama -and -not $Gpu) {
+  Write-Host "Starting Ollama-heavy VM profile (higher RAM/CPU)."
+}
+if ($Gpu -and -not $Ollama) {
+  Write-Host "Starting GPU profile. On WSL this is currently graphics-enabled only."
+}
+if ($Gpu -and $Ollama) {
+  Write-Host "Starting GPU + Ollama profile."
+}
+
+# Run as a direct script call so the child script has a normal `-File` invocation context.
+# Some shells can pass .ps1 files as ad-hoc command text, which causes `param` blocks to
+# be parsed as commands and fail.
+try {
+  & $launchScript -MemoryMB $MemoryMB -Cpus $Cpus @(
+    if ($Gpu) { "-Gpu" }
+    if ($Ollama) { "-Ollama" }
+  )
+}
+catch {
+  # Fallback for environments where direct script invocation is blocked.
+  Write-Host "Direct launch invocation failed; retrying in a fresh PowerShell process."
+  $launchArgs = @(
+    "-NoProfile"
+    "-ExecutionPolicy"
+    "Bypass"
+    "-File"
+    $launchScript
+    "-MemoryMB"
+    "$MemoryMB"
+    "-Cpus"
+    "$Cpus"
+  )
+  if ($Gpu) { $launchArgs += "-Gpu" }
+  if ($Ollama) { $launchArgs += "-Ollama" }
+  & "$PSHOME\powershell.exe" @launchArgs
 }

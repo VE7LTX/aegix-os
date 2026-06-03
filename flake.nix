@@ -68,7 +68,7 @@
           runtimeInputs = [ pkgs.nix ];
           text = ''
             echo "Building Aegix preview VM..."
-            nix build ${self}#nixosConfigurations.aegix-preview.config.system.build.vm -L
+            nix build --no-write-lock-file ${self}#nixosConfigurations.aegix-preview.config.system.build.vm -L
             echo
             echo "Preview VM built."
             echo "Run it with: ./result/bin/run-aegix-preview-vm"

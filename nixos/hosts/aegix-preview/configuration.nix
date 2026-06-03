@@ -13,7 +13,7 @@
   users.users.operator = {
     isNormalUser = true;
     description = "Aegix preview operator";
-    extraGroups = [ "wheel" ];
+    extraGroups = [ "aegix" "wheel" ];
     initialPassword = "aegix";
   };
 
@@ -51,6 +51,7 @@
   ];
 
   programs.command-not-found.enable = false;
+  services.logrotate.enable = false;
 
   services.aegix = {
     enable = true;

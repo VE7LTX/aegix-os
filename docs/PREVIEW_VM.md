@@ -17,7 +17,7 @@ It includes:
 - database/vector/time-series tool suite
 - CLI/TUI operator tools
 - terminal autologin as `operator`
-- first-entry TUI menu with help, checks, paths, and shell handoff
+- first-entry retro color TUI menu with help, checks, paths, secrets, and shell handoff
 - Aegix console issue, MOTD, and shell banner
 - quieter boot logging for a cleaner appliance-style startup
 

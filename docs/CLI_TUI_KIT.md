@@ -62,7 +62,7 @@ Planned Aegix policy behavior:
 
 ## First-entry TUI standard
 
-`aegixtui` should be the default first screen for the preview operator account. It is not a desktop shell; it is a console home screen that answers:
+`aegixtui` should be the default first screen for the preview operator account. It is not a desktop shell; it is a console home screen with a retro ANSI-style color palette that answers:
 
 - what can I do here?
 - where are the important files?
@@ -71,7 +71,7 @@ Planned Aegix policy behavior:
 - what secret handles exist?
 - how do I get back to the shell?
 
-The TUI should always preserve a clean console escape path. Pressing `q` exits to the normal shell, and `aegixtui` can be launched again manually.
+The TUI should always preserve a clean console escape path. Pressing `q` exits to the normal shell, and `aegixtui` can be launched again manually. Color should be used where the terminal supports it, with a monochrome fallback for limited serial consoles.
 
 ## Secrets CLI standard
 

@@ -9,11 +9,17 @@ import shutil
 import subprocess
 import textwrap
 from dataclasses import dataclass
-from pathlib import Path
 
 
 MAX_OUTPUT_LINES = 200
 USE_COLOR = False
+P_TITLE = 1
+P_FOOTER = 2
+P_MENU = 3
+P_SELECTED = 4
+P_HEADING = 5
+P_COMMAND = 6
+P_BODY = 7
 
 
 @dataclass(frozen=True)
@@ -178,6 +184,7 @@ def color(pair: int) -> int:
 
 
 def render(stdscr: curses.window, selected: int, output: str) -> None:
+    stdscr.bkgd(" ", color(P_BODY))
     stdscr.erase()
     height, width = stdscr.getmaxyx()
     if height < 18 or width < 72:
@@ -185,14 +192,23 @@ def render(stdscr: curses.window, selected: int, output: str) -> None:
         stdscr.refresh()
         return
 
-    title = " Aegix OS Preview | Operator Home "
-    stdscr.addstr(0, 2, title, color(1) | curses.A_BOLD | curses.A_REVERSE)
-    stdscr.addstr(1, 2, "Agent-first console + TUI. Choose an action or press q for shell.")
+    title = " AEGIX OS PREVIEW :: OPERATOR HOME "
+    top_bar = title.ljust(width - 1)
+    stdscr.addstr(0, 0, top_bar[: width - 1], color(P_TITLE) | curses.A_BOLD)
+    stdscr.addstr(
+        1,
+        2,
+        "Agent-first console + TUI. Choose an action or press q for shell.",
+        color(P_BODY),
+    )
 
     left_w = min(34, max(28, width // 3))
     right_x = left_w + 2
     right_w = width - right_x - 1
     body_h = height - 5
+
+    stdscr.addstr(2, 2, "==[ MENU ]" + "=" * max(0, left_w - 12), color(P_HEADING))
+    stdscr.addstr(2, right_x, "==[ DETAIL ]" + "=" * max(0, right_w - 13), color(P_HEADING))
 
     for i, item in enumerate(MENU):
         y = 3 + i
@@ -200,15 +216,15 @@ def render(stdscr: curses.window, selected: int, output: str) -> None:
             break
         marker = ">" if i == selected else " "
         text = f"{marker} {item.title}"
-        attr = color(1) | curses.A_BOLD | curses.A_REVERSE if i == selected else color(3)
+        attr = color(P_SELECTED) | curses.A_BOLD if i == selected else color(P_MENU)
         stdscr.addstr(y, 2, text[: left_w - 3].ljust(left_w - 3), attr)
 
     item = MENU[selected]
-    stdscr.addstr(3, right_x, item.title[:right_w], color(4) | curses.A_BOLD)
+    stdscr.addstr(3, right_x, item.title[:right_w], color(P_HEADING) | curses.A_BOLD)
     for idx, line in enumerate(wrap_lines(item.description, right_w)):
         if 5 + idx >= height - 2:
             break
-        stdscr.addstr(5 + idx, right_x, line[:right_w])
+        stdscr.addstr(5 + idx, right_x, line[:right_w], color(P_BODY))
 
     if item.command:
         command_text = " ".join(item.command)
@@ -217,18 +233,19 @@ def render(stdscr: curses.window, selected: int, output: str) -> None:
     else:
         command_text = "help screen"
     command_label = "Command: " + command_text
-    stdscr.addstr(7, right_x, command_label[:right_w], color(2))
+    stdscr.addstr(7, right_x, command_label[:right_w], color(P_COMMAND) | curses.A_BOLD)
 
     output_y = 9
     output_h = body_h - 6
     output_title = "Output"
-    stdscr.addstr(output_y - 1, right_x, output_title, color(3) | curses.A_BOLD)
+    stdscr.addstr(output_y - 1, right_x, output_title, color(P_HEADING) | curses.A_BOLD)
     visible_lines = wrap_lines(output, right_w)
     for idx, line in enumerate(visible_lines[:output_h]):
-        stdscr.addstr(output_y + idx, right_x, line[:right_w])
+        stdscr.addstr(output_y + idx, right_x, line[:right_w], color(P_BODY))
 
     footer = "Enter: run/open | r: refresh | s/q: shell | Up/Down/j/k: move"
-    stdscr.addstr(height - 1, 2, footer[: width - 4], color(2))
+    footer_bar = (" " + footer).ljust(width - 1)
+    stdscr.addstr(height - 1, 0, footer_bar[: width - 1], color(P_FOOTER) | curses.A_BOLD)
     stdscr.refresh()
 
 
@@ -244,17 +261,23 @@ def main(stdscr: curses.window) -> int:
     global USE_COLOR
     curses.curs_set(0)
     USE_COLOR = False
-    if curses.has_colors() and getattr(curses, "COLORS", 0) >= 8:
+    try:
         curses.start_color()
+    except curses.error:
+        pass
+    if curses.has_colors() and getattr(curses, "COLORS", 0) >= 8:
         try:
             curses.use_default_colors()
         except curses.error:
             pass
         try:
-            curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_CYAN)
-            curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)
-            curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
-            curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+            curses.init_pair(P_TITLE, curses.COLOR_WHITE, curses.COLOR_BLUE)
+            curses.init_pair(P_FOOTER, curses.COLOR_YELLOW, curses.COLOR_BLUE)
+            curses.init_pair(P_MENU, curses.COLOR_CYAN, curses.COLOR_BLACK)
+            curses.init_pair(P_SELECTED, curses.COLOR_BLACK, curses.COLOR_CYAN)
+            curses.init_pair(P_HEADING, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+            curses.init_pair(P_COMMAND, curses.COLOR_GREEN, curses.COLOR_BLACK)
+            curses.init_pair(P_BODY, curses.COLOR_WHITE, curses.COLOR_BLACK)
             USE_COLOR = True
         except curses.error:
             USE_COLOR = False

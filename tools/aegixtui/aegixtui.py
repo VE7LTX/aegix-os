@@ -61,6 +61,8 @@ Important commands:
   agentctl caps --json         Show preview capability policy
   agentctl events --json       Show recent Aegix event log entries
   aegixai status --json        Local Ollama copilot status
+  aegixai diagnose --json      Local AI logs and likely issue
+  aegixai warmup               Load model before first chat
   aegixai ask "..."            Chat with the local model
   secretsctl status --json     Secret store status without values
   codexcli --version           Codex CLI entrypoint
@@ -186,6 +188,24 @@ MENU = [
         agent_prompt=(
             "Use this to check whether the native local model is ready. If degraded, "
             "inspect systemctl status ollama and /aegix/logs/ollama-model-pull.log."
+        ),
+    ),
+    MenuItem(
+        "Local AI Diagnose",
+        "Show Ollama logs, model-pull logs, and likely timeout cause.",
+        ["aegixai", "diagnose", "--json"],
+        agent_prompt=(
+            "Use this when local AI appears stalled or times out. It reports model "
+            "presence, service state, model-pull logs, and recent Ollama journal lines."
+        ),
+    ),
+    MenuItem(
+        "Warm Local AI",
+        "Run a tiny prompt to load the model before a real chat.",
+        ["aegixai", "warmup"],
+        agent_prompt=(
+            "Run this after boot before the first real ask. Under QEMU software "
+            "emulation, the first local-model response can take several minutes."
         ),
     ),
     MenuItem(

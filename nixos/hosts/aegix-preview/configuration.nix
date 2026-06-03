@@ -61,6 +61,8 @@
       agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
       agentctl receipts --json
       aegixai status --json
+      aegixai diagnose --json
+      aegixai warmup
       aegixai ask "what should I inspect first?"
       secretsctl status --json
       codexcli --version
@@ -138,6 +140,8 @@
     aegix-receipts = "agentctl receipts --json";
     aegix-events = "agentctl events --json";
     aegix-ai = "aegixai";
+    aegix-ai-diagnose = "aegixai diagnose --json";
+    aegix-ai-warmup = "aegixai warmup";
     aegix-ask = "aegixai ask";
     aegix-command = "aegixai command";
     aegix-models = "aegixai models --json";
@@ -246,6 +250,8 @@ agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scrat
 agentctl receipts --json
 agentctl events --json
 aegixai status --json
+aegixai diagnose --json
+aegixai warmup
 aegixai ask "what should I inspect first?"
 ```
 
@@ -303,6 +309,8 @@ Commands:
 
 ```bash
 aegixai status --json
+aegixai diagnose --json
+aegixai warmup
 aegixai models --json
 aegixai ask "what should I inspect first?"
 aegixai command "show failed services"
@@ -312,6 +320,9 @@ aegixai grow --json
 Rules:
 
 - `aegixai` talks to Ollama on localhost.
+- The first answer may take several minutes under QEMU software emulation.
+- Run `aegixai diagnose --json` if the local model appears stalled.
+- Run `aegixai warmup --timeout 900` before the first real chat if needed.
 - It suggests commands; it does not execute them.
 - It may propose upgrades in `/aegix/models/growth`.
 - It may not silently upgrade itself, restart services, install packages, or change auth.
@@ -363,6 +374,8 @@ agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scrat
 agentctl receipts --json
 agentctl events --json
 aegixai status --json
+aegixai diagnose --json
+aegixai warmup
 aegixai ask "what should I inspect first?"
 secretsctl status --json
 secretsctl handles --json

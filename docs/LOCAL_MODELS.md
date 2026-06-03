@@ -45,6 +45,8 @@ Preview commands:
 
 ```bash
 aegixai status --json
+aegixai diagnose --json
+aegixai warmup
 aegixai models --json
 aegixai ask "what should I inspect first?"
 aegixai command "show failed services"
@@ -52,6 +54,16 @@ aegixai grow --json
 ```
 
 The preview VM attempts to pull `qwen2.5:0.5b` through `aegix-ollama-model-pull.service`. If the VM is offline, boot continues and `aegixai status --json` reports the degraded model state.
+
+On the preview VM, the first local inference can be slow because QEMU may fall back to software emulation. Use:
+
+```bash
+aegixai diagnose --json
+aegixai warmup --timeout 900
+aegixai ask "what should I inspect first?" --timeout 900
+```
+
+Non-JSON `ask`, `command`, and `warmup` show a wait indicator while the model loads.
 
 `aegixai command` suggests commands only. It does not execute them. Future command execution should go through `agentctl` sessions, capability checks, receipts, and approvals.
 

@@ -43,6 +43,8 @@ The index writes:
 
 ```bash
 aegixai status --json
+aegixai diagnose --json
+aegixai warmup
 aegixai models --json
 aegixai ask "what should I inspect first?"
 aegixai command "show failed services"

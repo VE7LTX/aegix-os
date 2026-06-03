@@ -61,6 +61,8 @@ agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scrat
 agentctl receipts --json
 agentctl events --json
 aegixai status --json
+aegixai diagnose --json
+aegixai warmup
 aegixai ask "what should I inspect first?"
 aegixai command "show failed services"
 sid=$(basename "$(ls -1 /aegix/receipts/*.json | tail -n1)" .json)
@@ -92,6 +94,8 @@ aegix-demo
 aegix-receipts
 aegix-events
 aegix-ai status --json
+aegix-ai diagnose --json
+aegix-ai warmup
 aegix-ask "what should I inspect first?"
 aegix-command "show failed services"
 aegix-models

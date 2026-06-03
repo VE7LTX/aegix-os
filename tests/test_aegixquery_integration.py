@@ -113,6 +113,33 @@ print(json.dumps({"message": {"role": "assistant", "content": json.dumps(content
         assert "Available tools" in first_request["messages"][0]["content"]
         assert any("Tool observations" in message.get("content", "") for message in second_request["messages"]), second_request
 
+        empty_backend = root / "empty_chat_backend.py"
+        empty_backend.write_text(
+            """#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+
+print(json.dumps({"message": {"content": ""}}))
+""",
+            encoding="utf-8",
+        )
+
+        fallback_env = env.copy()
+        fallback_env["AEGIX_QUERY_CHAT_CMD"] = f'"{sys.executable}" "{empty_backend}"'
+        fallback = subprocess.run(
+            [sys.executable, str(QUERY), "--root", str(root), "--json", "what", "is", "the", "ram", "usage", "right", "now"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=fallback_env,
+        )
+        assert fallback.returncode == 0, fallback.stderr
+        fallback_payload = json.loads(fallback.stdout)
+        assert fallback_payload["mode"] == "fallback-telemetry"
+        assert fallback_payload["response"].startswith("RAM used:")
+        assert fallback_payload["fallback"] == "telemetry"
+
         indexed = subprocess.run(
             [sys.executable, str(REPO / "tools" / "agentctl" / "agentctl.py"), "--root", str(root), "search-index", "ram usage", "--json"],
             check=False,

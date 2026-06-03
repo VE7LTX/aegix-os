@@ -100,6 +100,36 @@ def build_context(root: Path, prompt: str, tail_text: str, history_text: str) ->
     return "\n".join(parts).strip() + "\n"
 
 
+def prompt_requests_telemetry(prompt: str) -> bool:
+    return bool(re.search(r"\b(ram|memory|load|uptime|swap)\b", prompt, re.IGNORECASE))
+
+
+def telemetry_context(telemetry: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "## Prefetched Local Telemetry",
+            "",
+            json.dumps(telemetry, indent=2, sort_keys=True),
+        ]
+    )
+
+
+def format_telemetry_answer(telemetry: dict[str, Any]) -> str:
+    total = telemetry.get("ram_total_bytes")
+    available = telemetry.get("ram_available_bytes")
+    used = telemetry.get("ram_used_bytes")
+    loadavg = telemetry.get("loadavg") or []
+    parts = [
+        f"RAM used: {human_bytes(used)}",
+        f"RAM total: {human_bytes(total)}",
+    ]
+    if available is not None:
+        parts.append(f"RAM available: {human_bytes(available)}")
+    if loadavg:
+        parts.append("Load average: " + ", ".join(f"{value:.2f}" for value in loadavg[:3]))
+    return "\n".join(parts)
+
+
 def write_tail_file(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
@@ -324,7 +354,10 @@ def chat_backend_request(messages: list[dict[str, Any]], model: str, ollama_url:
         },
     }
     if command:
-        completed = subprocess.run(command, input=json.dumps(request), capture_output=True, text=True, check=False, timeout=timeout)
+        try:
+            completed = subprocess.run(command, input=json.dumps(request), capture_output=True, text=True, check=False, timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            return {"error": f"TimeoutExpired: {exc}"}
         try:
             return json.loads(completed.stdout)
         except json.JSONDecodeError:
@@ -504,15 +537,19 @@ def run_tool_loop(
     tail_path: Path,
     tail_text: str,
     history_text: str,
+    prefetch_text: str,
     model: str,
     ollama_url: str,
     timeout: int,
     num_predict: int,
 ) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
     tool_json = json.dumps(tool_catalog(), indent=2, sort_keys=True)
+    context_text = build_context(root, prompt, tail_text, history_text)
+    if prefetch_text.strip():
+        context_text = context_text + "\n" + prefetch_text.strip() + "\n"
     messages = [
         {"role": "system", "content": query_system_prompt(tool_json)},
-        {"role": "user", "content": build_context(root, prompt, tail_text, history_text)},
+        {"role": "user", "content": context_text},
     ]
     trace: list[dict[str, Any]] = []
     last_response: dict[str, Any] = {}
@@ -644,6 +681,8 @@ def main(argv: list[str] | None = None) -> int:
     history_text = redact(read_text(Path(os.environ.get("HISTFILE", "")), "")) if os.environ.get("HISTFILE") else ""
     if not history_text and os.environ.get("HISTCMD"):
         history_text = redact(os.environ["HISTCMD"])
+    telemetry = collect_telemetry() if prompt_requests_telemetry(prompt) else None
+    prefetch_text = telemetry_context(telemetry) if telemetry else ""
 
     write_tail_file(
         tail_path,
@@ -669,6 +708,7 @@ def main(argv: list[str] | None = None) -> int:
         tail_path=tail_path,
         tail_text=tail_text,
         history_text=history_text,
+        prefetch_text=prefetch_text,
         model=args.model,
         ollama_url=args.ollama_url,
         timeout=args.timeout,
@@ -677,6 +717,18 @@ def main(argv: list[str] | None = None) -> int:
     error = backend_payload.get("error") if isinstance(backend_payload, dict) else None
     if not response and not error:
         error = "model returned no final answer"
+    fallback_mode = None
+    if not response and telemetry is not None:
+        response = format_telemetry_answer(telemetry)
+        tool_trace.insert(
+            0,
+            {
+                "call": {"name": "procfs.telemetry", "arguments": {}},
+                "observation": telemetry,
+                "prefetched": True,
+            },
+        )
+        fallback_mode = "telemetry"
     if not response and error:
         response = error
 
@@ -696,14 +748,16 @@ def main(argv: list[str] | None = None) -> int:
         "tail_path": str(tail_path),
         "note_path": str(note_path),
         "model": args.model,
-        "mode": "tool-calling",
+        "mode": "fallback-telemetry" if fallback_mode else "tool-calling",
         "tool_trace": tool_trace,
         "backend": backend_payload,
         "index_result": index_result,
     }
-    exit_code = 0 if response and not error else 1
+    exit_code = 0 if response else 1
     if error:
         final_payload["error"] = error
+    if fallback_mode:
+        final_payload["fallback"] = fallback_mode
     return emit(args, final_payload, exit_code)
 
 

@@ -55,6 +55,9 @@
       aegixtui
       agentctl status --json
       agentctl caps --json
+      agentctl index --json
+      agentctl search-index Aegix --json
+      agentctl graph --json
       agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
       agentctl receipts --json
       secretsctl status --json
@@ -123,6 +126,9 @@
     aegix-status = "agentctl status --json";
     aegix-doctor = "agentctl doctor --json";
     aegix-paths = "agentctl paths --json";
+    aegix-index = "agentctl index --json";
+    aegix-search = "agentctl search-index";
+    aegix-graph = "agentctl graph --json";
     aegix-demo = "agentctl run demo-agent --task 'Create preview receipt' --workspace /aegix/scratch/demo --json";
     aegix-receipts = "agentctl receipts --json";
     aegix-events = "agentctl events --json";
@@ -156,7 +162,7 @@
     };
     script = ''
       ${self.packages.${pkgs.system}.obsidianctl}/bin/obsidianctl init --vault /aegix/notes/obsidian
-      ${pkgs.coreutils}/bin/chmod 0770 /aegix/scratch /aegix/projects /aegix/sessions /aegix/receipts /aegix/approvals /aegix/snapshots /aegix/checkpoints /aegix/logs /aegix/runbooks /aegix/notes/obsidian
+      ${pkgs.coreutils}/bin/chmod 0770 /aegix/scratch /aegix/projects /aegix/sessions /aegix/receipts /aegix/approvals /aegix/snapshots /aegix/checkpoints /aegix/index /aegix/logs /aegix/runbooks /aegix/notes/obsidian
       ${pkgs.coreutils}/bin/cat > /aegix/secrets/handles.json <<'EOF'
 [
   {
@@ -224,6 +230,9 @@ Start here after boot:
 agentctl doctor --json
 agentctl paths --json
 agentctl caps --json
+agentctl index --json
+agentctl search-index Aegix --json
+agentctl graph --json
 agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
 agentctl receipts --json
 agentctl events --json
@@ -234,9 +243,63 @@ Rules:
 - Use `/aegix/scratch` for experiments.
 - Use `/aegix/projects` for project work.
 - Leave a receipt for every meaningful write.
+- Run `agentctl index --json` after adding many files.
+- Use `agentctl search-index "query" --json` before expensive recursive scans.
+- Treat `/aegix/index/vector-registry.json` as the vector DB attachment point, not the source of truth.
 - Use `agentctl snapshot <session_id> --json` before rollback planning.
 - Use `agentctl rollback <session_id> --json` to show the non-destructive rollback plan.
 - Dangerous actions stay approval-only.
+EOF
+      ${pkgs.coreutils}/bin/cat > /aegix/runbooks/command-guide.md <<'EOF'
+# Aegix Command Guide
+
+Start with:
+
+```bash
+agentctl doctor --json
+agentctl paths --json
+agentctl caps --json
+agentctl commands --json
+agentctl help run --json
+```
+
+Look for `agent_help` in JSON output. It explains intent, safe usage, expected fields, and next steps.
+
+Session evidence flow:
+
+```bash
+agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
+agentctl receipts --json
+agentctl inspect <session_id> --json
+agentctl snapshot <session_id> --json
+agentctl rollback <session_id> --json
+```
+EOF
+      ${pkgs.coreutils}/bin/cat > /aegix/runbooks/file-index-graph.md <<'EOF'
+# File Index And Graph
+
+Use the local index before expensive recursive scans:
+
+```bash
+agentctl index --json
+agentctl search-index "query" --json
+agentctl graph --json
+```
+
+Artifacts:
+
+```text
+/aegix/index/files.jsonl
+/aegix/index/graph.json
+/aegix/index/aegix_index.sqlite
+/aegix/index/vector-registry.json
+```
+
+Vector DB policy:
+
+- canonical truth stays in files and SQLite/JSON graph records
+- vector storage is only a secondary index
+- do not embed secret stores or credential-adjacent files without explicit policy
 EOF
       ${pkgs.coreutils}/bin/cat > /aegix/notes/obsidian/00-inbox/aegix-preview.md <<'EOF'
 # Aegix Preview
@@ -252,6 +315,9 @@ agentctl doctor --json
 agentctl paths --json
 agentctl commands --json
 agentctl caps --json
+agentctl index --json
+agentctl search-index Aegix --json
+agentctl graph --json
 agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
 agentctl receipts --json
 agentctl events --json
@@ -266,5 +332,29 @@ ls -la /aegix
 ```
 EOF
     '';
+  };
+
+  systemd.services.aegix-index-refresh = {
+    description = "Refresh Aegix file graph and text index";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "aegix-preview-note.service" "systemd-tmpfiles-setup.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "aegix";
+      Group = "aegix";
+    };
+    script = ''
+      ${self.packages.${pkgs.system}.agentctl}/bin/agentctl --root /aegix index --max-files 5000 --json > /aegix/logs/index-refresh.json
+    '';
+  };
+
+  systemd.timers.aegix-index-refresh = {
+    description = "Periodic Aegix file index refresh";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2min";
+      OnUnitActiveSec = "30min";
+      Unit = "aegix-index-refresh.service";
+    };
   };
 }

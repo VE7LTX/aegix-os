@@ -25,6 +25,35 @@ DEFAULT_FOLDERS = [
     "80-troubleshooting",
 ]
 
+COMMAND_GUIDES = {
+    "path": {
+        "intent": "Show the active Obsidian vault path and whether it exists.",
+        "when_to_use": "Run first when an agent needs to find durable file-backed memory.",
+        "example": "obsidianctl path --json",
+        "next_steps": ["obsidianctl init --json", "obsidianctl search Aegix --json"],
+    },
+    "init": {
+        "intent": "Create the standard Aegix Obsidian vault folders.",
+        "when_to_use": "Run during bootstrapping or if the vault layout is missing.",
+        "example": "obsidianctl init --vault /aegix/notes/obsidian --json",
+        "safety_notes": ["This creates folders only; it does not delete or rewrite notes."],
+        "next_steps": ["obsidianctl new \"Agent handoff\" --folder 40-agent-handoffs --json"],
+    },
+    "new": {
+        "intent": "Create a timestamped Markdown note in the vault.",
+        "when_to_use": "Use for runbooks, decisions, handoffs, troubleshooting notes, and memory that must be grep-able.",
+        "example": "obsidianctl new \"Rollback decision\" --folder 30-decisions --json",
+        "safety_notes": ["Do not write raw secrets into notes; use secretsctl handles instead."],
+        "next_steps": ["obsidianctl search \"Rollback decision\" --json"],
+    },
+    "search": {
+        "intent": "Search the vault with fixed-string ripgrep.",
+        "when_to_use": "Use before asking the user repeated context questions; existing memory may already answer it.",
+        "example": "obsidianctl search Aegix --json",
+        "next_steps": ["Open the matching Markdown file and cite the path in your receipt."],
+    },
+}
+
 
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower()).strip("-")
@@ -36,6 +65,9 @@ def vault_path(args: argparse.Namespace) -> Path:
 
 
 def emit(args: argparse.Namespace, payload: dict[str, object]) -> int:
+    command = getattr(args, "command", None)
+    if command:
+        payload.setdefault("agent_help", COMMAND_GUIDES.get(command, {}))
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
@@ -98,7 +130,19 @@ def cmd_search(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="obsidianctl",
-        description="Aegix Obsidian AI memory CLI scaffold.",
+        description="Aegix Obsidian AI memory CLI.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+Agent prompt:
+  Use Obsidian memory for durable, inspectable notes. Prefer Markdown files
+  over hidden state. Never store raw secrets here.
+
+Common flow:
+  obsidianctl path --json
+  obsidianctl init --json
+  obsidianctl search Aegix --json
+  obsidianctl new "Agent handoff" --folder 40-agent-handoffs --json
+""",
     )
     parser.add_argument(
         "--vault",

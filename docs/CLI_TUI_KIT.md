@@ -77,6 +77,9 @@ Preview v0.2 TUI entries:
 
 - `Agent Doctor` checks writable paths, tool entrypoints, and failed systemd units.
 - `Aegix Paths` shows stable agent-facing paths and quick commands.
+- `Build File Index` writes `/aegix/index` graph, SQLite FTS, and vector registry artifacts.
+- `Search File Index` searches the local SQLite text index.
+- `File Graph` shows indexed roots, graph paths, and vector registry status.
 - `Run Demo Session` creates a scoped local session and JSON receipt.
 - `Recent Receipts` lists receipt metadata.
 - `Event Log` shows recent JSONL control-plane events.
@@ -88,6 +91,10 @@ Preview v0.2 CLI commands:
 
 - `agentctl doctor --json`
 - `agentctl paths --json`
+- `agentctl help run --json`
+- `agentctl index --json`
+- `agentctl search-index "rollback policy" --json`
+- `agentctl graph --json`
 - `agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json`
 - `agentctl receipts --json`
 - `agentctl events --json`
@@ -123,6 +130,23 @@ Use:
 Preview rollback is metadata-only. `agentctl snapshot <session_id> --json` writes snapshot and checkpoint records, and `agentctl rollback <session_id> --json` reports the planned restore behavior without changing files.
 
 The seeded policy file `/aegix/policy/rollback.yaml` documents the intended future backends: btrfs/ZFS snapshots, Nix generation rollback, and declarative config patch reversal.
+
+## Command help standard
+
+Agent-facing commands should include `agent_help` in JSON output. That field should explain intent, when to use the command, examples, safety notes, and next steps.
+
+Use:
+
+- `agentctl help run --json`
+- `agentctl commands --json`
+- `obsidianctl path --json`
+- `secretsctl policy --json`
+
+## File graph standard
+
+The file index lives under `/aegix/index` and is refreshed automatically in the preview VM by `aegix-index-refresh.service` and `aegix-index-refresh.timer`.
+
+The source of truth remains normal files plus SQLite/JSON index artifacts. Vector DB storage is a secondary index planned through `/aegix/index/vector-registry.json`.
 
 ## Agent rules
 

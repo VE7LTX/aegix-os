@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import uuid
@@ -19,12 +20,24 @@ from typing import Any
 VERSION = "preview-v0.2"
 DEFAULT_ROOT = Path(os.environ.get("AEGIX_ROOT", "/aegix"))
 
+CLI_DESCRIPTION = """\
+Aegix operator CLI.
+
+Use agentctl as the first stop for agents and operators. Prefer --json when an
+agent will parse the result, write receipts for meaningful work, and use
+snapshot/rollback commands before planning destructive changes.
+"""
+
 COMMANDS = [
     "status",
     "commands",
+    "help",
     "doctor",
     "paths",
     "agents",
+    "index",
+    "search-index",
+    "graph",
     "run",
     "receipts",
     "events",
@@ -94,6 +107,166 @@ PREVIEW_POLICY = {
     ],
 }
 
+DEFAULT_AGENT_PROMPT = {
+    "intent": "Reserved Aegix command group for future control-plane work.",
+    "when_to_use": "Use it to discover the planned surface, then check docs or run agentctl commands --json.",
+    "example": "agentctl commands --json",
+    "safety_notes": [
+        "This preview command does not execute dangerous actions.",
+        "Prefer implemented JSON commands before ad hoc shell automation.",
+    ],
+    "next_steps": [
+        "Run agentctl doctor --json to check the environment.",
+        "Run agentctl paths --json to find stable files and logs.",
+    ],
+}
+
+COMMAND_GUIDES: dict[str, dict[str, Any]] = {
+    "status": {
+        "intent": "Summarize the Aegix root, version, command registry, and control-plane object counts.",
+        "when_to_use": "Run first when entering the VM or when a new agent needs orientation.",
+        "example": "agentctl status --json",
+        "json_fields": ["name", "version", "root", "available_commands", "counts"],
+        "next_steps": ["agentctl doctor --json", "agentctl paths --json"],
+    },
+    "commands": {
+        "intent": "List implemented and reserved command groups with usage prompts.",
+        "when_to_use": "Use when an agent needs to discover what named interfaces exist.",
+        "example": "agentctl commands --json",
+        "json_fields": ["commands", "guides"],
+        "next_steps": ["agentctl help <command> --json"],
+    },
+    "help": {
+        "intent": "Return a focused helper prompt for one command or all command groups.",
+        "when_to_use": "Use before running an unfamiliar command.",
+        "example": "agentctl help run --json",
+        "json_fields": ["command", "guide"],
+        "next_steps": ["Run the command's example with --json."],
+    },
+    "doctor": {
+        "intent": "Check writable work areas, command availability, policy files, and failed systemd units.",
+        "when_to_use": "Run before making changes, after boot, and after a failed workflow.",
+        "example": "agentctl doctor --json",
+        "json_fields": ["status", "writable_failures", "checks"],
+        "safety_notes": ["A degraded result means inspect the failing path or unit before continuing."],
+        "next_steps": ["agentctl paths --json", "systemctl --failed --no-pager --plain"],
+    },
+    "paths": {
+        "intent": "Show the stable Aegix filesystem map and quick commands.",
+        "when_to_use": "Run when deciding where memory, receipts, sessions, logs, or rollback metadata belong.",
+        "example": "agentctl paths --json",
+        "json_fields": ["root", "paths", "quick_commands"],
+        "next_steps": ["Read /aegix/runbooks/first-agent.md", "agentctl events --json"],
+    },
+    "index": {
+        "intent": "Build a local file metadata graph and SQLite text index for agent navigation.",
+        "when_to_use": "Run after boot, after adding project files, or before searching a large tree.",
+        "example": "agentctl index --scope /aegix/projects --scope /aegix/notes --json",
+        "json_fields": ["status", "files_indexed", "graph_path", "sqlite_path", "vector_registry_path"],
+        "safety_notes": [
+            "The preview index stores metadata and text snippets only for readable text-like files.",
+            "Do not index secret stores or credential dumps.",
+        ],
+        "next_steps": ["agentctl search-index \"query\" --json", "agentctl graph --json"],
+    },
+    "search-index": {
+        "intent": "Search the local SQLite FTS index produced by agentctl index.",
+        "when_to_use": "Use before recursively scanning massive trees or asking the user where something is.",
+        "example": "agentctl search-index \"rollback policy\" --json",
+        "json_fields": ["query", "matches", "sqlite_path"],
+        "next_steps": ["Open the matched file path and cite it in receipts or notes."],
+    },
+    "graph": {
+        "intent": "Show the current file graph summary and graph artifact paths.",
+        "when_to_use": "Use when an agent needs to understand indexed roots, file counts, or reference edges.",
+        "example": "agentctl graph --json",
+        "json_fields": ["summary", "graph_path", "files_path", "vector_registry_path"],
+        "next_steps": ["agentctl search-index \"query\" --json", "agentctl index --json"],
+    },
+    "run": {
+        "intent": "Create a preview-safe local agent session, write session state, perform a scoped local write, and generate a receipt.",
+        "when_to_use": "Use for demo work or preview-safe tasks under /aegix/scratch or /aegix/projects.",
+        "example": "agentctl run demo-agent --task \"Create preview receipt\" --workspace /aegix/scratch/demo --json",
+        "json_fields": ["session_id", "status", "session", "receipt", "session_path", "receipt_path"],
+        "safety_notes": [
+            "Only /aegix/scratch and /aegix/projects are writable without approval in this preview.",
+            "A blocked status is useful evidence; inspect the receipt instead of retrying blindly.",
+        ],
+        "next_steps": [
+            "agentctl inspect <session_id> --json",
+            "agentctl snapshot <session_id> --json",
+            "agentctl receipts --json",
+        ],
+    },
+    "receipts": {
+        "intent": "List JSON receipts created by agent sessions.",
+        "when_to_use": "Use to prove what changed, what was verified, and what rollback command applies.",
+        "example": "agentctl receipts --json",
+        "json_fields": ["receipts"],
+        "next_steps": ["agentctl inspect <session_id> --json"],
+    },
+    "events": {
+        "intent": "Show recent JSONL control-plane events.",
+        "when_to_use": "Use for lightweight debugging and timeline reconstruction.",
+        "example": "agentctl events --limit 50 --json",
+        "json_fields": ["events", "log_path"],
+        "next_steps": ["tail -n 50 /aegix/logs/events.jsonl"],
+    },
+    "inspect": {
+        "intent": "Read session and receipt details for one session id.",
+        "when_to_use": "Use before rollback, approval, or reporting completion.",
+        "example": "agentctl inspect 20260603T044522Z-demo-agent-69150e6b --json",
+        "json_fields": ["found", "session_id", "session", "receipt"],
+        "next_steps": ["agentctl snapshot <session_id> --json", "agentctl rollback <session_id> --json"],
+    },
+    "caps": {
+        "intent": "Show the preview capability policy and approval-required categories.",
+        "when_to_use": "Use before shell, network, service, package, auth, or secret-related actions.",
+        "example": "agentctl caps --json",
+        "json_fields": ["mode", "allowed_without_approval", "local_write_roots", "approval_required"],
+        "safety_notes": ["Do not perform external writes, secret reads, service restarts, package installs, or auth changes without approval metadata."],
+        "next_steps": ["agentctl approve <session_id> --cap <capability> --json"],
+    },
+    "approve": {
+        "intent": "Create narrow approval metadata for a capability and session.",
+        "when_to_use": "Use to scaffold approval intent before v0.3 enforcement.",
+        "example": "agentctl approve <session_id> --cap service.restart:ollama --reason \"operator requested restart\" --json",
+        "json_fields": ["approval"],
+        "safety_notes": ["This does not execute the dangerous action; execution remains disabled in preview v0.2."],
+        "next_steps": ["agentctl approvals --json", "agentctl inspect <session_id> --json"],
+    },
+    "approvals": {
+        "intent": "List approval metadata files.",
+        "when_to_use": "Use when auditing pending or historical approval scaffolds.",
+        "example": "agentctl approvals --json",
+        "json_fields": ["approvals"],
+        "next_steps": ["agentctl inspect <session_id> --json"],
+    },
+    "snapshot": {
+        "intent": "Write snapshot and checkpoint metadata for rollback planning.",
+        "when_to_use": "Use before any rollback proposal or risky follow-up action.",
+        "example": "agentctl snapshot <session_id> --json",
+        "json_fields": ["snapshot", "snapshot_path", "checkpoint_path"],
+        "safety_notes": ["This is metadata-only; it does not create btrfs/ZFS snapshots yet."],
+        "next_steps": ["agentctl rollback <session_id> --json"],
+    },
+    "snapshots": {
+        "intent": "List snapshot metadata files.",
+        "when_to_use": "Use to find checkpoint records for rollback planning.",
+        "example": "agentctl snapshots --json",
+        "json_fields": ["snapshots"],
+        "next_steps": ["agentctl rollback <session_id> --json"],
+    },
+    "rollback": {
+        "intent": "Report the planned non-destructive rollback behavior for a session.",
+        "when_to_use": "Use after inspecting a receipt and creating snapshot metadata.",
+        "example": "agentctl rollback <session_id> --json",
+        "json_fields": ["session_id", "status", "planned_behavior", "operator_next_step"],
+        "safety_notes": ["Preview v0.2 never performs destructive rollback; it only explains the plan."],
+        "next_steps": ["Get explicit approval before any future destructive rollback implementation."],
+    },
+}
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -121,6 +294,7 @@ def paths(root: Path) -> dict[str, Path]:
         "snapshots": root / "snapshots",
         "checkpoints": root / "checkpoints",
         "logs": root / "logs",
+        "index": root / "index",
         "runbooks": root / "runbooks",
         "policy": root / "policy",
     }
@@ -155,6 +329,19 @@ def read_json(path: Path) -> dict[str, Any] | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return None
+
+
+def read_text_preview(path: Path, max_bytes: int) -> tuple[str, bool]:
+    try:
+        data = path.read_bytes()[:max_bytes]
+    except OSError:
+        return "", False
+    if b"\x00" in data:
+        return "", False
+    try:
+        return data.decode("utf-8", errors="replace"), True
+    except OSError:
+        return "", False
 
 
 def json_default(value: Any) -> str:
@@ -228,11 +415,150 @@ def list_events(root: Path, limit: int) -> list[dict[str, Any]]:
     return events
 
 
+def default_index_scopes(root: Path) -> list[Path]:
+    return [
+        root / "projects",
+        root / "scratch",
+        root / "notes",
+        root / "runbooks",
+        root / "policy",
+        root / "receipts",
+        root / "sessions",
+    ]
+
+
+def file_kind(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in {".md", ".txt", ".rst", ".adoc"}:
+        return "notes"
+    if suffix in {".json", ".jsonl", ".yaml", ".yml", ".toml", ".ini"}:
+        return "structured"
+    if suffix in {".py", ".sh", ".nix", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".c", ".h"}:
+        return "code"
+    if suffix in {".sqlite", ".db"}:
+        return "database"
+    return "file"
+
+
+def extract_references(text: str) -> list[str]:
+    refs = set()
+    for match in re.findall(r"\[[^\]]+\]\(([^)]+)\)", text):
+        refs.add(match.strip())
+    for match in re.findall(r"\[\[([^\]]+)\]\]", text):
+        refs.add(match.strip())
+    for match in re.findall(r"(?:(?:/aegix)|(?:\./)|(?:\.\./))[A-Za-z0-9_./:@+-]+", text):
+        refs.add(match.strip())
+    return sorted(refs)[:50]
+
+
+def sha256_text(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
+
+
+def write_index_sqlite(sqlite_path: Path, records: list[dict[str, Any]]) -> dict[str, Any]:
+    sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        conn.execute("drop table if exists files")
+        conn.execute("drop table if exists file_search")
+        conn.execute(
+            """
+            create table files (
+              path text primary key,
+              kind text,
+              size integer,
+              mtime real,
+              sha256 text,
+              title text,
+              snippet text
+            )
+            """
+        )
+        try:
+            conn.execute("create virtual table file_search using fts5(path, title, snippet)")
+            fts_enabled = True
+        except sqlite3.OperationalError:
+            conn.execute("create table file_search (path text, title text, snippet text)")
+            fts_enabled = False
+        for record in records:
+            conn.execute(
+                "insert into files(path, kind, size, mtime, sha256, title, snippet) values (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    record["path"],
+                    record["kind"],
+                    record["size"],
+                    record["mtime"],
+                    record["sha256"],
+                    record["title"],
+                    record["snippet"],
+                ),
+            )
+            conn.execute(
+                "insert into file_search(path, title, snippet) values (?, ?, ?)",
+                (record["path"], record["title"], record["snippet"]),
+            )
+        conn.commit()
+        return {"sqlite_fts": fts_enabled, "sqlite_path": str(sqlite_path)}
+    finally:
+        conn.close()
+
+
+def search_sqlite(sqlite_path: Path, query: str, limit: int) -> list[dict[str, Any]]:
+    if not sqlite_path.exists():
+        return []
+    conn = sqlite3.connect(sqlite_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = []
+        try:
+            rows = conn.execute(
+                """
+                select f.path, f.kind, f.size, f.title, f.snippet
+                from file_search s join files f on f.path = s.path
+                where file_search match ?
+                limit ?
+                """,
+                (query, limit),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            rows = []
+        if not rows:
+            like = f"%{query}%"
+            rows = conn.execute(
+                """
+                select path, kind, size, title, snippet
+                from files
+                where path like ? or title like ? or snippet like ?
+                limit ?
+                """,
+                (like, like, like, limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def policy_payload(root: Path) -> dict[str, Any]:
     policy = dict(PREVIEW_POLICY)
     policy["local_write_roots"] = [str(root / "scratch"), str(root / "projects")]
     policy["policy_file"] = str(root / "policy" / "capabilities.yaml")
     return policy
+
+
+def guide_for(command: str) -> dict[str, Any]:
+    guide = COMMAND_GUIDES.get(command, DEFAULT_AGENT_PROMPT)
+    payload = dict(guide)
+    payload.setdefault("command", command)
+    payload.setdefault("example", f"agentctl {command} --json")
+    payload.setdefault("json_tip", "Use --json for machine-readable output.")
+    return payload
+
+
+def add_help(payload: dict[str, Any], command: str) -> dict[str, Any]:
+    payload.setdefault("agent_help", guide_for(command))
+    return payload
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -250,11 +576,21 @@ def cmd_status(args: argparse.Namespace) -> int:
             "snapshots": len(list(p["snapshots"].glob("*.json"))) if p["snapshots"].exists() else 0,
         },
     }
-    return emit(args, payload)
+    return emit(args, add_help(payload, "status"))
 
 
 def cmd_commands(args: argparse.Namespace) -> int:
-    return emit(args, {"commands": COMMANDS})
+    guides = {command: guide_for(command) for command in COMMANDS}
+    return emit(args, add_help({"commands": COMMANDS, "guides": guides}, "commands"))
+
+
+def cmd_help(args: argparse.Namespace) -> int:
+    command = args.topic or "commands"
+    if command == "all":
+        payload = {"commands": COMMANDS, "guides": {name: guide_for(name) for name in COMMANDS}}
+    else:
+        payload = {"command": command, "guide": guide_for(command)}
+    return emit(args, add_help(payload, "help"))
 
 
 def cmd_paths(args: argparse.Namespace) -> int:
@@ -266,13 +602,169 @@ def cmd_paths(args: argparse.Namespace) -> int:
         "quick_commands": [
             "agentctl doctor --json",
             "agentctl run demo-agent --task \"Create preview receipt\" --workspace /aegix/scratch/demo --json",
+            "agentctl index --json",
+            "agentctl search-index \"rollback\" --json",
+            "agentctl graph --json",
             "agentctl receipts --json",
             "agentctl events --json",
             "agentctl rollback <session_id> --json",
         ],
     }
     append_event(root, {"command": "paths", "status": "reported"})
-    return emit(args, payload)
+    return emit(args, add_help(payload, "paths"))
+
+
+def cmd_index(args: argparse.Namespace) -> int:
+    root = root_from_args(args)
+    ensure_dirs(root)
+    index_dir = root / "index"
+    index_dir.mkdir(parents=True, exist_ok=True)
+    scopes = [Path(scope).expanduser() for scope in (args.scope or [])] or default_index_scopes(root)
+    scopes = [scope if scope.is_absolute() else root / scope for scope in scopes]
+
+    records: list[dict[str, Any]] = []
+    edges: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
+    max_bytes = args.max_bytes
+
+    for scope in scopes:
+        if not scope.exists():
+            skipped.append({"path": str(scope), "reason": "scope does not exist"})
+            continue
+        for current, dirs, files in os.walk(scope):
+            dirs[:] = [name for name in dirs if name not in {".git", ".hg", ".svn", "__pycache__", "node_modules"}]
+            current_path = Path(current)
+            for directory in dirs:
+                edges.append({"from": str(current_path), "to": str(current_path / directory), "type": "contains"})
+            for filename in files:
+                if len(records) >= args.max_files:
+                    skipped.append({"path": str(scope), "reason": "max_files reached"})
+                    break
+                path = current_path / filename
+                edges.append({"from": str(current_path), "to": str(path), "type": "contains"})
+                try:
+                    stat = path.stat()
+                except OSError as exc:
+                    skipped.append({"path": str(path), "reason": str(exc)})
+                    continue
+                text, is_text = read_text_preview(path, max_bytes)
+                if not is_text:
+                    record = {
+                        "path": str(path),
+                        "kind": file_kind(path),
+                        "size": stat.st_size,
+                        "mtime": stat.st_mtime,
+                        "sha256": "",
+                        "title": path.name,
+                        "snippet": "",
+                        "text_indexed": False,
+                        "references": [],
+                    }
+                else:
+                    lines = [line.strip() for line in text.splitlines() if line.strip()]
+                    title = lines[0].lstrip("# ").strip() if lines else path.name
+                    snippet = " ".join(lines[:12])[:2000]
+                    refs = extract_references(text)
+                    for ref in refs:
+                        edges.append({"from": str(path), "to": ref, "type": "references"})
+                    record = {
+                        "path": str(path),
+                        "kind": file_kind(path),
+                        "size": stat.st_size,
+                        "mtime": stat.st_mtime,
+                        "sha256": sha256_text(text),
+                        "title": title,
+                        "snippet": snippet,
+                        "text_indexed": True,
+                        "references": refs,
+                    }
+                records.append(record)
+
+    files_path = index_dir / "files.jsonl"
+    graph_path = index_dir / "graph.json"
+    sqlite_path = index_dir / "aegix_index.sqlite"
+    vector_registry_path = index_dir / "vector-registry.json"
+    files_path.write_text("\n".join(json.dumps(record, sort_keys=True) for record in records) + ("\n" if records else ""), encoding="utf-8")
+    graph = {
+        "created_at": iso_now(),
+        "root": str(root),
+        "scopes": [str(scope) for scope in scopes],
+        "nodes": [{"id": record["path"], "kind": record["kind"], "title": record["title"]} for record in records],
+        "edges": edges,
+        "summary": {
+            "files_indexed": len(records),
+            "text_files_indexed": sum(1 for record in records if record["text_indexed"]),
+            "edges": len(edges),
+            "skipped": len(skipped),
+        },
+    }
+    write_json(graph_path, graph)
+    sqlite_info = write_index_sqlite(sqlite_path, records)
+    vector_registry = {
+        "status": "planned",
+        "purpose": "Vector DB attachment point for semantic file search over canonical file/index records.",
+        "recommended_preview_backend": "qdrant",
+        "collection": "aegix_files",
+        "source_of_truth": str(files_path),
+        "graph_source": str(graph_path),
+        "embedding_status": "not-generated-in-preview-v0.2",
+        "notes": [
+            "Keep canonical memory in files and SQLite/JSON graph records.",
+            "Use vector storage as an index, not source of truth.",
+            "Do not embed secrets or credential-adjacent files without explicit policy.",
+        ],
+    }
+    write_json(vector_registry_path, vector_registry)
+    payload = {
+        "status": "completed",
+        "root": str(root),
+        "scopes": [str(scope) for scope in scopes],
+        "files_indexed": len(records),
+        "text_files_indexed": graph["summary"]["text_files_indexed"],
+        "edges": len(edges),
+        "skipped": skipped[:50],
+        "files_path": str(files_path),
+        "graph_path": str(graph_path),
+        "sqlite_path": str(sqlite_path),
+        "vector_registry_path": str(vector_registry_path),
+        **sqlite_info,
+    }
+    append_event(root, {"command": "index", "status": "completed", "files_indexed": len(records), "edges": len(edges)})
+    return emit(args, add_help(payload, "index"))
+
+
+def cmd_search_index(args: argparse.Namespace) -> int:
+    root = root_from_args(args)
+    sqlite_path = root / "index" / "aegix_index.sqlite"
+    matches = search_sqlite(sqlite_path, args.query, args.limit)
+    payload = {
+        "query": args.query,
+        "matches": matches,
+        "sqlite_path": str(sqlite_path),
+        "index_exists": sqlite_path.exists(),
+    }
+    append_event(root, {"command": "search-index", "status": "searched", "query": args.query, "matches": len(matches)})
+    return emit(args, add_help(payload, "search-index"))
+
+
+def cmd_graph(args: argparse.Namespace) -> int:
+    root = root_from_args(args)
+    graph_path = root / "index" / "graph.json"
+    files_path = root / "index" / "files.jsonl"
+    vector_registry_path = root / "index" / "vector-registry.json"
+    graph = read_json(graph_path) or {}
+    payload = {
+        "summary": graph.get("summary", {}),
+        "scopes": graph.get("scopes", []),
+        "created_at": graph.get("created_at"),
+        "graph_path": str(graph_path),
+        "files_path": str(files_path),
+        "sqlite_path": str(root / "index" / "aegix_index.sqlite"),
+        "vector_registry_path": str(vector_registry_path),
+        "graph_exists": graph_path.exists(),
+    }
+    append_event(root, {"command": "graph", "status": "reported", "graph_exists": graph_path.exists()})
+    return emit(args, add_help(payload, "graph"))
 
 
 def directory_check(path: Path) -> dict[str, Any]:
@@ -365,13 +857,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         "checks": checks,
     }
     append_event(root, {"command": "doctor", "status": status, "writable_failures": writable_failures})
-    return emit(args, payload, 0 if status == "passed" else 1)
+    return emit(args, add_help(payload, "doctor"), 0 if status == "passed" else 1)
 
 
 def cmd_caps(args: argparse.Namespace) -> int:
     root = root_from_args(args)
     append_event(root, {"command": "caps", "status": "reported"})
-    return emit(args, policy_payload(root))
+    return emit(args, add_help(policy_payload(root), "caps"))
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -394,6 +886,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         {"type": "receipt.write", "path": str(receipt_path)},
     ]
 
+    # The preview runner intentionally performs one tiny, inspectable write.
+    # Future runners should keep this pattern: decide policy, act, verify, then
+    # write a receipt that tells the next agent exactly how to inspect/rollback.
     if permitted:
         artifact_path = workspace / f"aegix-session-{session_id}.md"
         try:
@@ -489,20 +984,20 @@ def cmd_run(args: argparse.Namespace) -> int:
         "session_path": str(session_path),
         "receipt_path": str(receipt_path),
     }
-    return emit(args, payload, 0 if status != "failed" else 1)
+    return emit(args, add_help(payload, "run"), 0 if status != "failed" else 1)
 
 
 def cmd_receipts(args: argparse.Namespace) -> int:
     root = root_from_args(args)
     payload = {"receipts": list_json_files(root / "receipts")}
     append_event(root, {"command": "receipts", "status": "listed", "count": len(payload["receipts"])})
-    return emit(args, payload)
+    return emit(args, add_help(payload, "receipts"))
 
 
 def cmd_events(args: argparse.Namespace) -> int:
     root = root_from_args(args)
     payload = {"events": list_events(root, args.limit), "log_path": str(root / "logs" / "events.jsonl")}
-    return emit(args, payload)
+    return emit(args, add_help(payload, "events"))
 
 
 def cmd_inspect(args: argparse.Namespace) -> int:
@@ -514,22 +1009,22 @@ def cmd_inspect(args: argparse.Namespace) -> int:
     if session is None and receipt is None:
         return emit(
             args,
-            {
+            add_help({
                 "found": False,
                 "session_id": args.session_id,
                 "session_path": str(session_path),
                 "receipt_path": str(receipt_path),
-            },
+            }, "inspect"),
             1,
         )
     return emit(
         args,
-        {
+        add_help({
             "found": True,
             "session_id": args.session_id,
             "session": session,
             "receipt": receipt,
-        },
+        }, "inspect"),
     )
 
 
@@ -562,12 +1057,12 @@ def cmd_approve(args: argparse.Namespace) -> int:
             "status": "metadata-only",
         },
     )
-    return emit(args, {"approval": approval})
+    return emit(args, add_help({"approval": approval}, "approve"))
 
 
 def cmd_approvals(args: argparse.Namespace) -> int:
     root = root_from_args(args)
-    return emit(args, {"approvals": list_json_files(root / "approvals")})
+    return emit(args, add_help({"approvals": list_json_files(root / "approvals")}, "approvals"))
 
 
 def cmd_snapshot(args: argparse.Namespace) -> int:
@@ -598,12 +1093,18 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
     write_json(snapshot_path, snapshot)
     write_json(checkpoint_path, snapshot)
     append_event(root, {"command": "snapshot", "session_id": args.session_id, "status": "metadata-only"})
-    return emit(args, {"snapshot": snapshot, "snapshot_path": str(snapshot_path), "checkpoint_path": str(checkpoint_path)})
+    return emit(
+        args,
+        add_help(
+            {"snapshot": snapshot, "snapshot_path": str(snapshot_path), "checkpoint_path": str(checkpoint_path)},
+            "snapshot",
+        ),
+    )
 
 
 def cmd_snapshots(args: argparse.Namespace) -> int:
     root = root_from_args(args)
-    return emit(args, {"snapshots": list_json_files(root / "snapshots")})
+    return emit(args, add_help({"snapshots": list_json_files(root / "snapshots")}, "snapshots"))
 
 
 def cmd_rollback(args: argparse.Namespace) -> int:
@@ -623,7 +1124,7 @@ def cmd_rollback(args: argparse.Namespace) -> int:
         "receipt_path": str(root / "receipts" / f"{args.session_id}.json"),
     }
     append_event(root, {"command": "rollback", "session_id": args.session_id, "status": "planned"})
-    return emit(args, payload)
+    return emit(args, add_help(payload, "rollback"))
 
 
 def cmd_scaffold(args: argparse.Namespace) -> int:
@@ -636,7 +1137,7 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
         "root": str(root),
         "message": "This command is reserved for the next Aegix control-plane milestone.",
     }
-    return emit(args, payload)
+    return emit(args, add_help(payload, command))
 
 
 def add_json_flag(parser: argparse.ArgumentParser) -> None:
@@ -644,7 +1145,21 @@ def add_json_flag(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="agentctl", description="Aegix OS operator CLI")
+    parser = argparse.ArgumentParser(
+        prog="agentctl",
+        description=CLI_DESCRIPTION,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+Agent prompt:
+  1. Start with: agentctl doctor --json
+  2. Find paths: agentctl paths --json
+  3. Check policy: agentctl caps --json
+  4. Run scoped work: agentctl run demo-agent --task "..." --workspace /aegix/scratch/demo --json
+  5. Inspect evidence: agentctl receipts --json
+
+Use agentctl help <command> --json for command-specific guidance.
+""",
+    )
     parser.add_argument("--root", default=str(DEFAULT_ROOT), help="Aegix root path")
     add_json_flag(parser)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -657,15 +1172,67 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(commands)
     commands.set_defaults(func=cmd_commands)
 
-    doctor = subparsers.add_parser("doctor", help="run preview health checks")
+    help_cmd = subparsers.add_parser("help", help="show command-specific agent guidance")
+    help_cmd.add_argument("topic", nargs="?", help="command name, or 'all'")
+    add_json_flag(help_cmd)
+    help_cmd.set_defaults(func=cmd_help)
+
+    doctor = subparsers.add_parser(
+        "doctor",
+        help="run preview health checks",
+        description=guide_for("doctor")["intent"],
+        epilog=f"Example: {guide_for('doctor')['example']}",
+    )
     add_json_flag(doctor)
     doctor.set_defaults(func=cmd_doctor)
 
-    path_cmd = subparsers.add_parser("paths", help="show Aegix control-plane paths")
+    path_cmd = subparsers.add_parser(
+        "paths",
+        help="show Aegix control-plane paths",
+        description=guide_for("paths")["intent"],
+        epilog=f"Example: {guide_for('paths')['example']}",
+    )
     add_json_flag(path_cmd)
     path_cmd.set_defaults(func=cmd_paths)
 
-    run = subparsers.add_parser("run", help="run a preview-safe agent session")
+    index = subparsers.add_parser(
+        "index",
+        help="build the local file graph and text index",
+        description=guide_for("index")["intent"],
+        epilog=f"Example: {guide_for('index')['example']}",
+    )
+    index.add_argument("--scope", action="append", help="Path to index. May be repeated.")
+    index.add_argument("--max-files", type=int, default=5000, help="Maximum files to index in this run.")
+    index.add_argument("--max-bytes", type=int, default=65536, help="Maximum bytes read from each text file.")
+    add_json_flag(index)
+    index.set_defaults(func=cmd_index)
+
+    search_index = subparsers.add_parser(
+        "search-index",
+        help="search the local file index",
+        description=guide_for("search-index")["intent"],
+        epilog=f"Example: {guide_for('search-index')['example']}",
+    )
+    search_index.add_argument("query", help="Search query.")
+    search_index.add_argument("--limit", type=int, default=20)
+    add_json_flag(search_index)
+    search_index.set_defaults(func=cmd_search_index)
+
+    graph = subparsers.add_parser(
+        "graph",
+        help="show file graph summary",
+        description=guide_for("graph")["intent"],
+        epilog=f"Example: {guide_for('graph')['example']}",
+    )
+    add_json_flag(graph)
+    graph.set_defaults(func=cmd_graph)
+
+    run = subparsers.add_parser(
+        "run",
+        help="run a preview-safe agent session",
+        description=guide_for("run")["intent"],
+        epilog=f"Example: {guide_for('run')['example']}",
+    )
     run.add_argument("agent", help="agent name")
     run.add_argument("--task", required=True, help="task text")
     run.add_argument("--workspace", required=True, help="workspace path")
@@ -673,25 +1240,25 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(run)
     run.set_defaults(func=cmd_run)
 
-    receipts = subparsers.add_parser("receipts", help="list receipts")
+    receipts = subparsers.add_parser("receipts", help="list receipts", epilog=f"Example: {guide_for('receipts')['example']}")
     add_json_flag(receipts)
     receipts.set_defaults(func=cmd_receipts)
 
-    events = subparsers.add_parser("events", help="show recent Aegix event log entries")
+    events = subparsers.add_parser("events", help="show recent Aegix event log entries", epilog=f"Example: {guide_for('events')['example']}")
     events.add_argument("--limit", type=int, default=25)
     add_json_flag(events)
     events.set_defaults(func=cmd_events)
 
-    inspect = subparsers.add_parser("inspect", help="inspect a session")
+    inspect = subparsers.add_parser("inspect", help="inspect a session", epilog=f"Example: {guide_for('inspect')['example']}")
     inspect.add_argument("session_id", help="session id")
     add_json_flag(inspect)
     inspect.set_defaults(func=cmd_inspect)
 
-    caps = subparsers.add_parser("caps", help="show preview capability policy")
+    caps = subparsers.add_parser("caps", help="show preview capability policy", epilog=f"Example: {guide_for('caps')['example']}")
     add_json_flag(caps)
     caps.set_defaults(func=cmd_caps)
 
-    approve = subparsers.add_parser("approve", help="create approval token metadata")
+    approve = subparsers.add_parser("approve", help="create approval token metadata", epilog=f"Example: {guide_for('approve')['example']}")
     approve.add_argument("session_id", help="session id")
     approve.add_argument("--cap", required=True, help="capability to approve")
     approve.add_argument("--approver", default=os.environ.get("USER") or os.environ.get("USERNAME") or "operator")
@@ -700,20 +1267,20 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(approve)
     approve.set_defaults(func=cmd_approve)
 
-    approvals = subparsers.add_parser("approvals", help="list approval metadata")
+    approvals = subparsers.add_parser("approvals", help="list approval metadata", epilog=f"Example: {guide_for('approvals')['example']}")
     add_json_flag(approvals)
     approvals.set_defaults(func=cmd_approvals)
 
-    snapshot = subparsers.add_parser("snapshot", help="create snapshot metadata")
+    snapshot = subparsers.add_parser("snapshot", help="create snapshot metadata", epilog=f"Example: {guide_for('snapshot')['example']}")
     snapshot.add_argument("session_id", help="session id")
     add_json_flag(snapshot)
     snapshot.set_defaults(func=cmd_snapshot)
 
-    snapshots = subparsers.add_parser("snapshots", help="list snapshot metadata")
+    snapshots = subparsers.add_parser("snapshots", help="list snapshot metadata", epilog=f"Example: {guide_for('snapshots')['example']}")
     add_json_flag(snapshots)
     snapshots.set_defaults(func=cmd_snapshots)
 
-    rollback = subparsers.add_parser("rollback", help="show planned rollback behavior")
+    rollback = subparsers.add_parser("rollback", help="show planned rollback behavior", epilog=f"Example: {guide_for('rollback')['example']}")
     rollback.add_argument("session_id", help="session id")
     add_json_flag(rollback)
     rollback.set_defaults(func=cmd_rollback)
@@ -722,8 +1289,12 @@ def build_parser() -> argparse.ArgumentParser:
         if command in {
             "status",
             "commands",
+            "help",
             "doctor",
             "paths",
+            "index",
+            "search-index",
+            "graph",
             "run",
             "receipts",
             "events",

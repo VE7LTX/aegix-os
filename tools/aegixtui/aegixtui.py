@@ -28,6 +28,7 @@ class MenuItem:
     description: str
     command: list[str] | None = None
     help_text: str | None = None
+    agent_prompt: str | None = None
 
 
 HELP_TEXT = """\
@@ -44,6 +45,7 @@ Important paths:
   /aegix/receipts              Action receipts
   /aegix/approvals             Approval token metadata
   /aegix/checkpoints           Rollback checkpoint metadata
+  /aegix/index                 File graph, SQLite FTS, vector registry
   /aegix/logs/events.jsonl     Agent-readable event stream
   /aegix/secrets               Secret metadata and handles, not raw values
 
@@ -51,6 +53,9 @@ Important commands:
   agentctl status --json       Aegix operator status
   agentctl doctor --json       Check paths, tools, and failed units
   agentctl paths --json        Show agent-facing filesystem map
+  agentctl index --json        Build local file graph and text index
+  agentctl search-index Aegix --json
+  agentctl graph --json        Show index graph summary
   agentctl run demo-agent --task "Preview" --workspace /aegix/scratch/demo --json
   agentctl receipts --json     List generated action receipts
   agentctl caps --json         Show preview capability policy
@@ -84,16 +89,51 @@ MENU = [
         "Agent Doctor",
         "Run agent-facing health checks for paths, tools, and systemd failures.",
         ["agentctl", "doctor", "--json"],
+        agent_prompt=(
+            "Start here after boot or after an error. If status is degraded, inspect "
+            "writable_failures and systemd_failed before running sessions."
+        ),
     ),
     MenuItem(
         "Aegix Paths",
         "Show the stable filesystem map and quick operator commands.",
         ["agentctl", "paths", "--json"],
+        agent_prompt=(
+            "Use this to decide where to write memory, receipts, sessions, logs, "
+            "approvals, snapshots, and rollback checkpoint metadata."
+        ),
     ),
     MenuItem(
         "What Can I Do?",
         "List the current Aegix command groups.",
         ["agentctl", "commands", "--json"],
+    ),
+    MenuItem(
+        "Build File Index",
+        "Build the file graph, SQLite text index, and vector registry scaffold.",
+        ["agentctl", "index", "--json"],
+        agent_prompt=(
+            "Run this before searching large trees. It indexes safe Aegix roots "
+            "into /aegix/index and leaves vector DB configuration as an explicit scaffold."
+        ),
+    ),
+    MenuItem(
+        "Search File Index",
+        "Search indexed files for Aegix using the local SQLite index.",
+        ["agentctl", "search-index", "Aegix", "--json"],
+        agent_prompt=(
+            "Use indexed search before expensive recursive scans. Rebuild the index "
+            "after adding a lot of files or changing project structure."
+        ),
+    ),
+    MenuItem(
+        "File Graph",
+        "Show indexed roots, graph artifact paths, and vector registry status.",
+        ["agentctl", "graph", "--json"],
+        agent_prompt=(
+            "Use this to understand what the agent can search and where the graph, "
+            "SQLite index, and vector registry files live."
+        ),
     ),
     MenuItem(
         "Run Demo Session",
@@ -108,21 +148,34 @@ MENU = [
             "/aegix/scratch/demo",
             "--json",
         ],
+        agent_prompt=(
+            "Run this to verify the control plane end to end. Save the session_id, "
+            "then inspect it, snapshot it, and review its receipt."
+        ),
     ),
     MenuItem(
         "Recent Receipts",
         "List generated session receipts.",
         ["agentctl", "receipts", "--json"],
+        agent_prompt="Use receipts as completion evidence. No receipt means the action is not done.",
     ),
     MenuItem(
         "Event Log",
         "Show recent JSONL events written by Aegix control commands.",
         ["agentctl", "events", "--json"],
+        agent_prompt=(
+            "Use events for quick timeline debugging. Use receipts for detailed proof "
+            "of actions and verification."
+        ),
     ),
     MenuItem(
         "Capabilities",
         "Show preview policy for local writes, approvals, and denied actions.",
         ["agentctl", "caps", "--json"],
+        agent_prompt=(
+            "Check this before network, service, package, secret, auth, or external "
+            "write work. Approval-required actions stay metadata-only in this preview."
+        ),
     ),
     MenuItem(
         "Approvals",
@@ -158,6 +211,10 @@ MENU = [
         "Obsidian AI Memory",
         "Show the file-backed Obsidian vault used for agent memory.",
         ["obsidianctl", "path", "--json"],
+        agent_prompt=(
+            "Use Obsidian vault files for durable, grep-able memory. Do not put raw "
+            "secrets in notes."
+        ),
     ),
     MenuItem(
         "Search Memory For Aegix",
@@ -312,7 +369,24 @@ def initial_output(item: MenuItem) -> str:
     if item.help_text:
         return item.help_text
     if item.command:
-        return "Press Enter to run this check."
+        command_text = " ".join(item.command)
+        prompt = item.agent_prompt or (
+            "Run this command when you need structured evidence for the selected system area. "
+            "Prefer the JSON fields over screen scraping, and copy relevant paths into receipts."
+        )
+        return "\n".join(
+            [
+                item.description,
+                "",
+                "Agent prompt:",
+                textwrap.fill(prompt, width=78),
+                "",
+                "Command:",
+                command_text,
+                "",
+                "Press Enter to run it. Press r to refresh after state changes.",
+            ]
+        )
     return item.help_text or "Press Enter to exit to shell."
 
 

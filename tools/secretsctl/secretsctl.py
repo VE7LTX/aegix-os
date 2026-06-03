@@ -36,8 +36,38 @@ DEFAULT_HANDLES = [
     },
 ]
 
+COMMAND_GUIDES = {
+    "status": {
+        "intent": "Report secret-store status without exposing secret values.",
+        "when_to_use": "Run before any secret-related task to confirm the metadata root and policy posture.",
+        "example": "secretsctl status --json",
+        "safety_notes": ["This command must never print raw secret values."],
+        "next_steps": ["secretsctl handles --json", "agentctl caps --json"],
+    },
+    "handles": {
+        "intent": "List secret handles, purposes, and statuses without values.",
+        "when_to_use": "Use when an agent needs to know which credential-like capabilities may exist.",
+        "example": "secretsctl handles --json",
+        "safety_notes": [
+            "A handle is not a secret value.",
+            "Use brokered access in future milestones rather than copying credentials into prompts or files.",
+        ],
+        "next_steps": ["secretsctl policy --json", "agentctl approve <session_id> --cap secret.read:<handle> --json"],
+    },
+    "policy": {
+        "intent": "Show the Aegix secret handling rules.",
+        "when_to_use": "Use before attempting CRM, Codex, OpenClaw, router, or API work that might touch credentials.",
+        "example": "secretsctl policy --json",
+        "safety_notes": ["External writes and authority changes need explicit approval metadata."],
+        "next_steps": ["agentctl caps --json", "agentctl events --json"],
+    },
+}
+
 
 def emit(args: argparse.Namespace, payload: dict[str, object]) -> int:
+    command = getattr(args, "command", None)
+    if command:
+        payload.setdefault("agent_help", COMMAND_GUIDES.get(command, {}))
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
@@ -119,6 +149,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="secretsctl",
         description="Aegix secret handle and broker scaffold.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+Agent prompt:
+  Secrets are handles, not raw prompt text. Start with status and handles.
+  Do not print, store, summarize, or guess raw secret values.
+
+Common flow:
+  secretsctl status --json
+  secretsctl handles --json
+  secretsctl policy --json
+  agentctl approve <session_id> --cap secret.read:<handle> --json
+""",
     )
     parser.add_argument(
         "--root",

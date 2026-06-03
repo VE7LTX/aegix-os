@@ -17,6 +17,8 @@
 - JSON receipts for preview-safe local actions
 - JSONL event log for simple agent/operator debugging
 - `agentctl doctor` and `agentctl paths` debug surfaces
+- file graph, SQLite FTS index, and vector registry scaffold
+- command-level `agent_help` prompts in JSON outputs
 - preview capability policy surfaced by CLI/TUI
 - approval-token metadata scaffold
 - snapshot, checkpoint, and rollback metadata placeholders

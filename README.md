@@ -35,6 +35,7 @@ The primary kit is tracked in [docs/PRIMARY_KIT.md](docs/PRIMARY_KIT.md). It cur
 
 - AI operator interface
 - CLI/TUI operator kit
+- agent command guide
 - native system access layer
 - shortcut and command layer
 - workspace layout
@@ -46,6 +47,7 @@ The primary kit is tracked in [docs/PRIMARY_KIT.md](docs/PRIMARY_KIT.md). It cur
 - developer tools
 - local model tools
 - database, vector storage, and time-series tools
+- file index, graph, SQLite FTS, and vector registry scaffolding
 - system dashboard target
 - documentation rules
 - safety, backup, and rollback defaults
@@ -158,6 +160,7 @@ OpenClaw gets the benefit of local tools. Aegix owns the boundary.
   projects/
   sessions/
   checkpoints/
+  index/
   memory/
   models/
     ollama/
@@ -232,6 +235,9 @@ nix run .#agentctl -- --help
 nix run .#agentctl -- --root ./.aegix-preview doctor --json
 nix run .#agentctl -- --root ./.aegix-preview paths --json
 nix run .#agentctl -- --root ./.aegix-preview caps --json
+nix run .#agentctl -- --root ./.aegix-preview index --json
+nix run .#agentctl -- --root ./.aegix-preview search-index Aegix --json
+nix run .#agentctl -- --root ./.aegix-preview graph --json
 nix run .#agentctl -- --root ./.aegix-preview run demo-agent --task "Create preview receipt" --workspace scratch/demo --json
 nix run .#agentctl -- --root ./.aegix-preview receipts --json
 nix run .#agentctl -- --root ./.aegix-preview events --json
@@ -239,7 +245,13 @@ nix run .#obsidianctl -- path
 nix run .#aegix-vm
 ```
 
-`agentctl` now includes Preview v0.2 session, receipt, event log, doctor, path map, capability, approval metadata, snapshot/checkpoint metadata, and rollback planning commands. `aegix-vm` builds the preview NixOS VM described in [docs/PREVIEW_VM.md](docs/PREVIEW_VM.md).
+`agentctl` now includes Preview v0.2 session, receipt, event log, doctor, path map, file index/graph, capability, approval metadata, snapshot/checkpoint metadata, and rollback planning commands. `aegix-vm` builds the preview NixOS VM described in [docs/PREVIEW_VM.md](docs/PREVIEW_VM.md).
+
+Useful docs:
+
+- [Agent Command Guide](docs/AGENT_COMMAND_GUIDE.md)
+- [File Index And Graph](docs/FILE_INDEX_GRAPH.md)
+- [Preview VM](docs/PREVIEW_VM.md)
 
 ## License
 

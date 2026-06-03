@@ -19,6 +19,7 @@ It includes:
 - terminal autologin as `operator`
 - first-entry retro color TUI menu with help, demo sessions, receipts, capabilities, secrets, checks, paths, and shell handoff
 - agent-readable event log at `/aegix/logs/events.jsonl`
+- automatic file graph and SQLite search index under `/aegix/index`
 - first-agent runbook at `/aegix/runbooks/first-agent.md`
 - rollback policy scaffold at `/aegix/policy/rollback.yaml`
 - Aegix console issue, MOTD, and shell banner
@@ -51,6 +52,9 @@ agentctl doctor --json
 agentctl paths --json
 agentctl commands --json
 agentctl caps --json
+agentctl index --json
+agentctl search-index Aegix --json
+agentctl graph --json
 agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
 agentctl receipts --json
 agentctl events --json
@@ -76,6 +80,9 @@ Convenience aliases are available in the VM shell:
 ```bash
 aegix-doctor
 aegix-paths
+aegix-index
+aegix-search Aegix
+aegix-graph
 aegix-demo
 aegix-receipts
 aegix-events

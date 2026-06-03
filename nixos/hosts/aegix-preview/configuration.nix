@@ -10,6 +10,15 @@
 
   time.timeZone = "America/Vancouver";
 
+  boot.consoleLogLevel = 3;
+  boot.kernelParams = [
+    "quiet"
+    "loglevel=3"
+    "rd.systemd.show_status=auto"
+    "systemd.show_status=auto"
+    "udev.log_level=3"
+  ];
+
   users.users.operator = {
     isNormalUser = true;
     description = "Aegix preview operator";
@@ -19,6 +28,43 @@
 
   security.sudo.wheelNeedsPassword = false;
   services.getty.autologinUser = "operator";
+  services.getty.helpLine = ''
+    Aegix OS preview console
+    AI-first appliance profile on a reproducible NixOS base.
+  '';
+
+  environment.etc."issue".text = ''
+    Aegix OS Preview (\m) - \l
+
+    Agent-first Linux appliance console
+    Login: operator / password: aegix
+
+  '';
+
+  environment.etc."motd".text = ''
+    Aegix OS Preview
+    Agent-first Linux appliance profile
+
+    Quick checks:
+      agentctl status --json
+      obsidianctl path --json
+      obsidianctl search Aegix --json
+      systemctl status ollama
+
+    Aegix root: /aegix
+    Obsidian AI memory: /aegix/notes/obsidian
+  '';
+
+  environment.interactiveShellInit = ''
+    if [ -n "$PS1" ] && [ "$USER" = "operator" ] && [ -z "$AEGIX_BANNER_SHOWN" ]; then
+      export AEGIX_BANNER_SHOWN=1
+      printf '\n'
+      printf 'Aegix OS Preview\n'
+      printf 'Agent-first Linux appliance console\n'
+      printf 'Root: /aegix | Memory: /aegix/notes/obsidian | Models: Ollama localhost:11434\n'
+      printf '\n'
+    fi
+  '';
 
   environment.systemPackages = with pkgs; [
     self.packages.${pkgs.system}.agentctl

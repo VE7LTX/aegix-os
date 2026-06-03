@@ -1,6 +1,8 @@
-# Preview VM
+# Aegix Preview VM
 
-The preview VM is a NixOS VM profile for inspecting the current Aegix OS scaffold.
+The preview VM is an Aegix-branded NixOS appliance profile for inspecting the current Aegix OS scaffold.
+
+NixOS is still the reproducible base layer. The operator-facing console, login issue, message of the day, shell banner, filesystem layout, and installed tooling are branded and arranged around Aegix.
 
 It includes:
 
@@ -12,6 +14,8 @@ It includes:
 - database/vector/time-series tool suite
 - CLI/TUI operator tools
 - terminal autologin as `operator`
+- Aegix console issue, MOTD, and shell banner
+- quieter boot logging for a cleaner appliance-style startup
 
 ## Build
 
@@ -26,6 +30,8 @@ nix run .#aegix-vm
 ```
 
 The preview is terminal-first. Login is automatic as `operator`; the password is `aegix` if needed.
+
+Early firmware lines from SeaBIOS, iPXE, or QEMU are expected in this VM preview. The OS login surface should present as Aegix OS Preview once the serial console starts.
 
 ## Inspect
 

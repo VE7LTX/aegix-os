@@ -41,6 +41,8 @@ LAN exposure should require explicit configuration:
 
 `aegixai` is the Aegix-native terminal copilot. It talks to local Ollama over localhost and gives agents/operators a small local chat and command-suggestion surface.
 
+The shell shortcut `? question` sends shell context into that same local path and records the chat as Markdown memory under `/aegix/notes/obsidian/90-terminal-chat/`.
+
 Preview commands:
 
 ```bash

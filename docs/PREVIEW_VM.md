@@ -14,6 +14,7 @@ It includes:
 - `obsidianctl`
 - `secretsctl`
 - Obsidian vault folders
+- `? question` shell shortcut for local AI with terminal context
 - Ollama service profile
 - default local model pull scaffold for `qwen2.5:0.5b`
 - database/vector/time-series tool suite
@@ -85,6 +86,8 @@ ls -la /aegix
 `agentctl approve`, `agentctl snapshot`, and `agentctl rollback` are metadata scaffolds in this preview. They do not execute dangerous actions or destructive rollback.
 
 `agentctl verify --json` is the canonical health proof for Preview v0.2. It creates a scoped demo session, receipt, approval scaffold, snapshot metadata, rollback plan, file index, graph, and verification report. The report includes `rollback_mode: metadata_only` and confirms rollback planning does not change the session artifact.
+
+`? question` writes a terminal tail note and a Markdown chat log under `/aegix/notes/obsidian/90-terminal-chat/`, then refreshes the index so the exchange is searchable.
 
 Convenience aliases are available in the VM shell:
 

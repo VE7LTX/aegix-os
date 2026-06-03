@@ -81,18 +81,46 @@
       printf 'Aegix OS Preview\n'
       printf 'Agent-first Linux appliance console\n'
       printf 'Root: /aegix | Memory: /aegix/notes/obsidian | Models: Ollama localhost:11434\n'
+      printf 'Use "? question" to send shell context to local AI.\n'
       printf 'Opening operator TUI. Press q to return to shell. Run aegixtui anytime.\n'
       printf '\n'
       if [ -z "$AEGIX_NO_TUI" ] && command -v aegixtui >/dev/null 2>&1; then
         aegixtui
       fi
     fi
+
+    _aegix_query() {
+      local root="''${AEGIX_ROOT:-/aegix}"
+      local tail_file="$root/logs/terminal-tail.md"
+      local tail_dir
+      local history_tail
+      tail_dir="$(${pkgs.coreutils}/bin/dirname "$tail_file")"
+      history_tail="$(history 20 2>/dev/null | ${pkgs.gnused}/bin/sed -E 's/([Pp]assword|[Tt]oken|[Ss]ecret|[Kk]ey|[Aa]uth|[Cc]redential|[Pp]assphrase)=([^[:space:]]+)/\1=[REDACTED]/g; s/(ghp_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+|xox[pbar]-[A-Za-z0-9-]+|AKIA[0-9A-Z]{16})/[REDACTED]/g')"
+      ${pkgs.coreutils}/bin/mkdir -p "$tail_dir"
+      ${pkgs.coreutils}/bin/cat > "$tail_file" <<EOF
+# Aegix Terminal Tail
+
+- captured_at: $(${pkgs.coreutils}/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
+- cwd: $PWD
+- user: $USER
+
+\`\`\`text
+$history_tail
+\`\`\`
+EOF
+      if [ "$#" -gt 0 ]; then
+        printf '\n## Query\n\n' >> "$tail_file"
+        printf '%s\n' "$*" >> "$tail_file"
+      fi
+      aegix-query "$@"
+    }
   '';
 
   environment.systemPackages = with pkgs; [
     self.packages.${pkgs.system}.agentctl
     self.packages.${pkgs.system}.aegixai
     self.packages.${pkgs.system}.aegixtui
+    self.packages.${pkgs.system}."aegix-query"
     self.packages.${pkgs.system}.codex
     self.packages.${pkgs.system}.codexcli
     self.packages.${pkgs.system}.obsidianctl
@@ -144,6 +172,7 @@
     aegix-ai-diagnose = "aegixai diagnose --json";
     aegix-ai-warmup = "aegixai warmup";
     aegix-ask = "aegixai ask";
+    "?" = "_aegix_query";
     aegix-command = "aegixai command";
     aegix-models = "aegixai models --json";
     aegix-failed = "systemctl --failed --no-pager --plain";
@@ -176,7 +205,7 @@
     };
     script = ''
       ${self.packages.${pkgs.system}.obsidianctl}/bin/obsidianctl init --vault /aegix/notes/obsidian
-      ${pkgs.coreutils}/bin/chmod 0770 /aegix/scratch /aegix/projects /aegix/sessions /aegix/receipts /aegix/approvals /aegix/snapshots /aegix/checkpoints /aegix/index /aegix/logs /aegix/logs/verify /aegix/runbooks /aegix/notes/obsidian
+      ${pkgs.coreutils}/bin/chmod 0770 /aegix/scratch /aegix/projects /aegix/sessions /aegix/receipts /aegix/approvals /aegix/snapshots /aegix/checkpoints /aegix/index /aegix/logs /aegix/logs/verify /aegix/runbooks /aegix/notes/obsidian /aegix/notes/obsidian/90-terminal-chat
       ${pkgs.coreutils}/bin/cat > /aegix/secrets/handles.json <<'EOF'
 [
   {

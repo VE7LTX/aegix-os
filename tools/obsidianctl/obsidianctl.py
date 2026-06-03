@@ -23,6 +23,7 @@ DEFAULT_FOLDERS = [
     "60-system-map",
     "70-shortcuts",
     "80-troubleshooting",
+    "90-terminal-chat",
 ]
 
 COMMAND_GUIDES = {

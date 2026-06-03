@@ -64,6 +64,7 @@ Important commands:
   aegixai status --json        Local Ollama copilot status
   aegixai diagnose --json      Local AI logs and likely issue
   aegixai warmup               Load model before first chat
+  ? question                   Send shell context and question to local AI
   aegixai ask "..."            Chat with the local model
   secretsctl status --json     Secret store status without values
   codexcli --version           Codex CLI entrypoint
@@ -223,8 +224,8 @@ MENU = [
         "Ask the local Aegix model what to inspect first.",
         ["aegixai", "ask", "what should I inspect first?"],
         agent_prompt=(
-            "Use this for local model help without sending context to a cloud model. "
-            "The answer is advisory; use agentctl receipts for proof of actions."
+            "Use `? question` from the shell to send context automatically, or use "
+            "this direct command when you only want the plain local ask path."
         ),
     ),
     MenuItem(
@@ -232,7 +233,8 @@ MENU = [
         "Ask the local model for terminal command suggestions without execution.",
         ["aegixai", "command", "show failed services and Aegix status"],
         agent_prompt=(
-            "This suggests commands only. Review before running anything, especially "
+            "Use `? question` when you want shell context injected first. This path "
+            "suggests commands only. Review before running anything, especially "
             "service, package, auth, network, secret, or external-write actions."
         ),
     ),

@@ -47,6 +47,8 @@ These should be available where a terminal interface is useful:
 
 The GUI Obsidian app can be installed separately, but agents should write and inspect memory through file-backed Markdown and `obsidianctl` first.
 
+The shell shortcut `? question` sends the current shell context to local AI and writes the exchange into `/aegix/notes/obsidian/90-terminal-chat/` so it can be indexed like other memory.
+
 ## Codex CLI standard
 
 `codexcli` is the Aegix-owned entrypoint for Codex CLI. It currently bootstraps the pinned npm package `@openai/codex@0.136.0` through Node/npm and keeps npm cache data under the operator cache path by default.

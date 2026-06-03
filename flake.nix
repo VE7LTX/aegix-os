@@ -87,6 +87,14 @@
           '';
         };
 
+        packages."aegix-query" = pkgs.writeShellApplication {
+          name = "aegix-query";
+          runtimeInputs = [ python ];
+          text = ''
+            exec ${python}/bin/python ${self}/tools/aegixquery/aegixquery.py "$@"
+          '';
+        };
+
         packages.codexcli = pkgs.writeShellApplication {
           name = "codexcli";
           runtimeInputs = [ pkgs.nodejs pkgs.git ];
@@ -133,9 +141,11 @@
             tools/agentctl/agentctl.py \
             tools/aegixtui/aegixtui.py \
             tools/aegixai/aegixai.py \
+            tools/aegixquery/aegixquery.py \
             tools/obsidianctl/obsidianctl.py \
             tools/secretsctl/secretsctl.py
           ${python}/bin/python tests/test_agentctl_integration.py
+          ${python}/bin/python tests/test_aegixquery_integration.py
           touch $out
         '';
       }

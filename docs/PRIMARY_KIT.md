@@ -131,6 +131,7 @@ Default vault target:
   60-system-map/
   70-shortcuts/
   80-troubleshooting/
+  90-terminal-chat/
 ```
 
 The vault should contain:
@@ -148,6 +149,7 @@ The vault should contain:
 - ADRs and decisions
 - runbooks
 - receipt index
+- terminal chat transcripts
 - memory index
 - model routing notes
 - troubleshooting notes

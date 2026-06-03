@@ -46,6 +46,7 @@ Important paths:
   /aegix/approvals             Approval token metadata
   /aegix/checkpoints           Rollback checkpoint metadata
   /aegix/index                 File graph, SQLite FTS, vector registry
+  /aegix/logs/startup-summary.md Startup summary shown before TUI launch
   /aegix/logs/events.jsonl     Agent-readable event stream
   /aegix/secrets               Secret metadata and handles, not raw values
 
@@ -66,6 +67,7 @@ Important commands:
   aegixai warmup               Load model before first chat
   ? question                   Send shell context and question to local AI
   aegixai ask "..."            Chat with the local model
+  cat /aegix/logs/startup-summary.md
   secretsctl status --json     Secret store status without values
   codexcli --version           Codex CLI entrypoint
   obsidianctl path --json      Obsidian memory vault path
@@ -181,6 +183,15 @@ MENU = [
         agent_prompt=(
             "Use events for quick timeline debugging. Use receipts for detailed proof "
             "of actions and verification."
+        ),
+    ),
+    MenuItem(
+        "Startup Log",
+        "Show the boot setup summary before the TUI opened.",
+        ["cat", "/aegix/logs/startup-summary.md"],
+        agent_prompt=(
+            "Use this to inspect the startup trace, model pull log, index refresh "
+            "status, and failed units before the operator shell opened."
         ),
     ),
     MenuItem(

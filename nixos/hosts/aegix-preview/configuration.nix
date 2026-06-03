@@ -82,9 +82,25 @@
       printf 'Agent-first Linux appliance console\n'
       printf 'Root: /aegix | Memory: /aegix/notes/obsidian | Models: Ollama localhost:11434\n'
       printf 'Use "? question" to send shell context to local AI.\n'
-      printf 'Opening operator TUI. Press q to return to shell. Run aegixtui anytime.\n'
-      printf '\n'
+      if [ -r /aegix/logs/startup-summary.md ]; then
+        printf '\n'
+        printf 'Setup log:\n'
+        ${pkgs.coreutils}/bin/cat /aegix/logs/startup-summary.md
+        printf '\n'
+      fi
       if [ -z "$AEGIX_NO_TUI" ] && command -v aegixtui >/dev/null 2>&1; then
+        printf 'Press Space to continue to the operator TUI. Press q to return to shell later.\n'
+        printf '\n'
+        while :; do
+          if IFS= read -r -n 1 key; then
+            if [ "$key" = " " ]; then
+              break
+            fi
+          else
+            break
+          fi
+        done
+        printf '\n'
         aegixtui
       fi
     fi
@@ -417,7 +433,51 @@ systemctl status aegix-agentd
 systemctl status ollama
 ls -la /aegix
 ```
-EOF
+      EOF
+    '';
+  };
+
+  systemd.services.aegix-startup-log = {
+    description = "Write Aegix startup summary";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "aegix-preview-note.service" "aegix-ollama-model-pull.service" "systemd-tmpfiles-setup.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "operator";
+      Group = "aegix";
+    };
+    script = ''
+      set +e
+      ${pkgs.coreutils}/bin/mkdir -p /aegix/logs
+      tmp="$(${pkgs.coreutils}/bin/mktemp /aegix/logs/startup-summary.XXXXXX)"
+      {
+        printf '# Aegix Startup Summary\n\n'
+        printf '- generated_at: %s\n' "$(${pkgs.coreutils}/bin/date -u +%Y-%m-%dT%H:%M:%SZ)"
+        printf '- host: %s\n' "$(${pkgs.coreutils}/bin/hostname 2>/dev/null || echo unknown)"
+        printf '\n## Setup Log\n\n'
+        if [ -r /aegix/logs/ollama-model-pull.log ]; then
+          printf '```text\n'
+          ${pkgs.coreutils}/bin/tail -n 200 /aegix/logs/ollama-model-pull.log
+          printf '\n```\n'
+        else
+          printf '_No Ollama model-pull log found._\n'
+        fi
+        printf '\n## Index Refresh\n\n'
+        if [ -r /aegix/logs/index-refresh.json ]; then
+          printf '```json\n'
+          ${pkgs.coreutils}/bin/cat /aegix/logs/index-refresh.json
+          printf '\n```\n'
+        else
+          printf '_No index refresh artifact found yet._\n'
+        fi
+        printf '\n## Failed Services\n\n'
+        printf '```text\n'
+        ${pkgs.systemd}/bin/systemctl --failed --no-pager --plain 2>&1 || true
+        printf '\n```\n'
+      } > "$tmp"
+      ${pkgs.coreutils}/bin/mv "$tmp" /aegix/logs/startup-summary.md
+      ${pkgs.coreutils}/bin/chmod 0644 /aegix/logs/startup-summary.md
+      exit 0
     '';
   };
 

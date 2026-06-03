@@ -33,6 +33,7 @@ It includes:
 
 ```bash
 nix run .#aegix-vm
+nix run .#aegix-vm-gpu
 ```
 
 ## Run
@@ -125,6 +126,11 @@ Then launch the preview:
 ```
 
 The script runs `nix run .#aegix-vm` inside Ubuntu WSL from this repository path.
+Use `-Gpu` for a graphics-enabled build profile:
+
+```
+.\start-aegix.ps1 -Gpu
+```
 
 Convenience launchers are also available at the repository root:
 

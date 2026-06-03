@@ -129,6 +129,18 @@
           '';
         };
 
+        packages.aegix-vm-gpu = pkgs.writeShellApplication {
+          name = "aegix-vm-gpu";
+          runtimeInputs = [ pkgs.nix ];
+          text = ''
+            echo "Building Aegix preview VM (GPU profile)..."
+            nix build --no-write-lock-file ${self}#nixosConfigurations.aegix-preview-gpu.config.system.build.vm -L
+            echo
+            echo "Preview GPU VM built."
+            echo "Run it with: ./result/bin/run-aegix-preview-vm"
+          '';
+        };
+
         packages.default = self.packages.${system}.agentctl;
 
         checks.agentctl-integration = pkgs.runCommand "aegix-agentctl-integration" {
@@ -159,5 +171,15 @@
           ./nixos/hosts/aegix-preview/configuration.nix
         ];
       };
+      nixosConfigurations.aegix-preview-gpu = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit self; };
+        modules = [
+          ./nixos/modules/aegix.nix
+          ./nixos/hosts/aegix-preview/configuration.nix
+          ./nixos/hosts/aegix-preview-gpu.nix
+        ];
+      };
     };
 }
+

@@ -1,5 +1,6 @@
 param(
-  [switch]$Restart
+  [switch]$Restart,
+  [switch]$Gpu
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,4 +39,8 @@ if ($Restart) {
 }
 
 Write-Host "Starting Aegix preview VM..."
-& $launchScript
+if ($Gpu) {
+  & $launchScript -Gpu
+} else {
+  & $launchScript
+}

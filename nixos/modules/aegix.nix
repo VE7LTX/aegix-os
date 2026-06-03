@@ -5,7 +5,7 @@ let
 in
 {
   options.services.aegix = {
-    enable = lib.mkEnableOption "Aegix OS agent appliance scaffold";
+    enable = lib.mkEnableOption "Aegix OS AI-first workstation/server scaffold";
 
     package = lib.mkOption {
       type = lib.types.package;
@@ -34,22 +34,32 @@ in
       group = "aegix";
       home = cfg.root;
       createHome = true;
-      description = "Aegix agent appliance service account";
+      description = "Aegix AI-first system service account";
     };
 
     systemd.tmpfiles.rules = [
       "d ${cfg.root} 0750 aegix aegix - -"
       "d ${cfg.root}/agents 0750 aegix aegix - -"
+      "d ${cfg.root}/commands 0750 aegix aegix - -"
       "d ${cfg.root}/memory 0750 aegix aegix - -"
+      "d ${cfg.root}/notes 0750 aegix aegix - -"
+      "d ${cfg.root}/notes/obsidian 0750 aegix aegix - -"
+      "d ${cfg.root}/mcp 0750 aegix aegix - -"
+      "d ${cfg.root}/api 0750 aegix aegix - -"
+      "d ${cfg.root}/plugins 0750 aegix aegix - -"
       "d ${cfg.root}/policy 0750 aegix aegix - -"
       "d ${cfg.root}/projects 0750 aegix aegix - -"
       "d ${cfg.root}/receipts 0750 aegix aegix - -"
+      "d ${cfg.root}/appliances 0750 aegix aegix - -"
       "d ${cfg.root}/snapshots 0750 aegix aegix - -"
       "d ${cfg.root}/logs 0750 aegix aegix - -"
+      "d ${cfg.root}/screenshots 0750 aegix aegix - -"
+      "d ${cfg.root}/runbooks 0750 aegix aegix - -"
+      "d ${cfg.root}/scratch 0750 aegix aegix - -"
     ];
 
     systemd.services.aegix-agentd = {
-      description = "Aegix agent session runner scaffold";
+      description = "Aegix AI-first session runner scaffold";
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "oneshot";

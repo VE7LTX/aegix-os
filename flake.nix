@@ -1,5 +1,5 @@
 {
-  description = "Aegix OS: capability-secured Linux agent appliance scaffold";
+  description = "Aegix OS: AI-first Linux workstation/server scaffold";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

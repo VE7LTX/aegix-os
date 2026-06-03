@@ -1,10 +1,10 @@
 # Architecture
 
-Aegix OS is a pre-MVP scaffold for a Linux agent appliance where agents are operating-system principals and authority is granted through explicit capabilities.
+Aegix OS is a pre-MVP scaffold for an AI-first Linux workstation/server profile where agents can inspect, navigate, operate, document, and hand off through built-in system interfaces.
 
 ## Planes
 
-The architecture is split into seven planes:
+The architecture is split into eight planes:
 
 | Plane | Responsibility |
 |---|---|
@@ -12,9 +12,12 @@ The architecture is split into seven planes:
 | Identity | Per-agent Unix identity, workspace, memory path, trust tier, budget profile |
 | Runtime | Tiered execution from read-only process sandbox to disposable VM |
 | Capability broker | Local authorization point for files, shell, network, secrets, tools, and escalation |
-| Memory | File-backed facts, decisions, receipts, project notes, indexes, and session state |
+| Memory | Obsidian-backed AI memory, file-backed facts, decisions, receipts, project notes, indexes, and session state |
+| Integration | Plugin registry, MCP servers, local API servers, and appliance controls |
 | Action | Transactional task loop with verification, receipt, commit, rollback, or escalation |
 | Human control | CLI, dashboard, approval tokens, receipt review, policy ownership |
+
+The primary kit is defined in [PRIMARY_KIT.md](PRIMARY_KIT.md). This architecture keeps that kit usable by agents without giving them ambient authority over the host.
 
 ## Operating Loop
 

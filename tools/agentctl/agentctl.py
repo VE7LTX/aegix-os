@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal Aegix operator CLI scaffold."""
+"""Minimal Aegix AI-first operator CLI scaffold."""
 
 from __future__ import annotations
 
@@ -10,12 +10,25 @@ from datetime import datetime, timezone
 
 COMMANDS = [
     "agents",
+    "commands",
     "caps",
     "run",
+    "inspect",
     "diff",
     "approve",
     "rollback",
     "receipts",
+    "notes",
+    "openclaw",
+    "obsidian",
+    "plugins",
+    "mcp",
+    "api",
+    "router",
+    "appliances",
+    "screenshot",
+    "logs",
+    "services",
     "status",
     "verify",
 ]
@@ -24,7 +37,7 @@ COMMANDS = [
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentctl",
-        description="Aegix OS agent appliance operator CLI scaffold.",
+        description="Aegix OS AI-first operator CLI scaffold.",
     )
     parser.add_argument(
         "command",

@@ -3,7 +3,7 @@
 ## Phase 0: Public Scaffold
 
 - README, license, notice, contribution rules, and security policy
-- architecture, security model, OpenClaw, and roadmap docs
+- primary kit, architecture, security model, OpenClaw, and roadmap docs
 - flake with `agentctl` and placeholder `aegix-vm` commands
 - NixOS module skeleton
 - policy and receipt examples
@@ -17,6 +17,10 @@
 - `capd` capability broker
 - rootless Podman runtime
 - per-agent directories
+- Obsidian vault profile
+- MCP/API server profile
+- plugin registry
+- documented shortcut command registry
 - JSONL receipts
 - read-only observer agent
 
@@ -24,6 +28,8 @@
 
 - OpenClaw native integration profile
 - MCP-compatible tool gateway behind the broker
+- local API server registry
+- network/router appliance control profile
 - approval tokens
 - secret broker
 - workspace snapshots

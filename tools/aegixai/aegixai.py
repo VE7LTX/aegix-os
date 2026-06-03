@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -24,6 +25,8 @@ DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 DEFAULT_TIMEOUT = int(os.environ.get("AEGIX_AI_TIMEOUT", "600"))
 DEFAULT_NUM_PREDICT = int(os.environ.get("AEGIX_AI_NUM_PREDICT", "192"))
 
+ANSI_RE = re.compile(r"\x1b\[[0-9?;]*[A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
+
 SYSTEM_PROMPT = """\
 You are Aegix Native, the small local operator copilot inside Aegix OS.
 
@@ -35,6 +38,12 @@ Rules:
 - For dangerous actions, prepare a plan and ask for approval metadata.
 - Use /aegix/scratch for experiments and /aegix/projects for project work.
 - Tell the operator when Ollama/model capability is degraded.
+- If asked what to inspect first, recommend these commands in order:
+  agentctl doctor --json
+  agentctl paths --json
+  agentctl caps --json
+  agentctl index --json
+  agentctl receipts --json
 """
 
 COMMAND_ASSIST_PROMPT = """\
@@ -124,7 +133,7 @@ def read_tail(path: Path, lines: int = 80) -> dict[str, Any]:
         return {
             "path": str(path),
             "exists": True,
-            "tail": path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:],
+            "tail": [ANSI_RE.sub("", line) for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]],
         }
     except OSError as exc:
         return {"path": str(path), "exists": True, "error": f"{exc.__class__.__name__}: {exc}", "tail": []}
@@ -139,7 +148,7 @@ def run_log_command(command: list[str], timeout: int = 20) -> dict[str, Any]:
             "available": True,
             "command": command,
             "exit_code": result.returncode,
-            "output": (result.stdout + result.stderr).strip(),
+            "output": ANSI_RE.sub("", (result.stdout + result.stderr).strip()),
         }
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"available": True, "command": command, "error": f"{exc.__class__.__name__}: {exc}", "output": ""}
@@ -164,6 +173,16 @@ def helper_prompt(command: str) -> dict[str, Any]:
     }
 
 
+def first_inspection_brief() -> list[str]:
+    return [
+        "Run agentctl doctor --json and check status.",
+        "Run agentctl paths --json to locate sessions, receipts, logs, index, and runbooks.",
+        "Run agentctl caps --json before any service, package, secret, network, or external-write work.",
+        "Run agentctl index --json, then search with agentctl search-index \"term\" --json.",
+        "Use agentctl run ... for scoped work, then inspect receipts before calling the task complete.",
+    ]
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     try:
         tags = ollama_json(args, "/api/tags", timeout=10)
@@ -182,6 +201,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         "models": models,
         "model_present": args.model in models,
         "error": error,
+        "first_inspection_brief": first_inspection_brief(),
         "agent_help": helper_prompt("status"),
     }
     return emit(args, payload, 0 if available else 1)
@@ -231,11 +251,12 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
         "models": models,
         "timeout_seconds": args.timeout,
         "likely_issue": "cold model load or slow software-emulated inference" if ollama_available and args.model in models else "ollama unavailable or model missing",
+        "first_inspection_brief": first_inspection_brief(),
         "logs": {
             "model_pull": read_tail(root / "logs" / "ollama-model-pull.log"),
             "ollama_service": run_log_command(["systemctl", "status", "ollama", "--no-pager", "--plain"]),
-            "ollama_journal": run_log_command(["journalctl", "-u", "ollama", "-n", "80", "--no-pager", "--plain"]),
-            "pull_service_journal": run_log_command(["journalctl", "-u", "aegix-ollama-model-pull", "-n", "80", "--no-pager", "--plain"]),
+            "ollama_journal": run_log_command(["journalctl", "-u", "ollama", "-n", "80", "--no-pager"]),
+            "pull_service_journal": run_log_command(["journalctl", "-u", "aegix-ollama-model-pull", "-n", "80", "--no-pager"]),
         },
         "agent_help": helper_prompt("diagnose"),
     }

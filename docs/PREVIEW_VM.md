@@ -117,3 +117,12 @@ Then launch the preview:
 ```
 
 The script runs `nix run .#aegix-vm` inside Ubuntu WSL from this repository path.
+
+Convenience launchers are also available at the repository root:
+
+```powershell
+.\start-aegix.ps1
+.\start-aegix.ps1 -Restart
+```
+
+`start-aegix.cmd` is available for double-click or Command Prompt use. On this machine, the desktop shortcut `Start Aegix OS Preview` points at `start-aegix.ps1`.

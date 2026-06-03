@@ -247,6 +247,15 @@ nix run .#obsidianctl -- path
 nix run .#aegix-vm
 ```
 
+On Windows from this workspace, use:
+
+```powershell
+.\start-aegix.ps1
+.\start-aegix.ps1 -Restart
+```
+
+For double-click use, run `start-aegix.cmd` or the desktop shortcut named `Start Aegix OS Preview`.
+
 `agentctl` now includes Preview v0.2 session, receipt, event log, doctor, path map, file index/graph, capability, approval metadata, snapshot/checkpoint metadata, and rollback planning commands. `aegix-vm` builds the preview NixOS VM described in [docs/PREVIEW_VM.md](docs/PREVIEW_VM.md).
 
 Useful docs:

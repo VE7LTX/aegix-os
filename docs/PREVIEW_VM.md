@@ -16,7 +16,7 @@ It includes:
 - Obsidian vault folders
 - `? question` shell shortcut for local AI with terminal context
 - Ollama service profile
-- default local model pull scaffold for `qwen2.5:0.5b`
+- default local model pull scaffold for `qwen3.5:0.8b`
 - database/vector/time-series tool suite
 - CLI/TUI operator tools
 - terminal autologin as `operator`

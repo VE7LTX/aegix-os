@@ -18,7 +18,7 @@ from typing import Any
 
 
 DEFAULT_ROOT = Path(os.environ.get("AEGIX_ROOT", "/aegix"))
-DEFAULT_MODEL = os.environ.get("AEGIX_AI_MODEL", "qwen2.5:0.5b")
+DEFAULT_MODEL = os.environ.get("AEGIX_AI_MODEL", "qwen3.5:0.8b")
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 DEFAULT_TIMEOUT = int(os.environ.get("AEGIX_AI_TIMEOUT", "600"))
 DEFAULT_NUM_PREDICT = int(os.environ.get("AEGIX_AI_NUM_PREDICT", "192"))

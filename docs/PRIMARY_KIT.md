@@ -295,7 +295,7 @@ Default local model profile should support:
 
 - Ollama service
 - `aegixai` native terminal copilot
-- default starter model `qwen2.5:0.5b`
+- default starter model `qwen3.5:0.8b`
 - llama.cpp adapter
 - model cache directory
 - model registry notes

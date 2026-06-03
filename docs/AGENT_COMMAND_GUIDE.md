@@ -39,6 +39,18 @@ The index writes:
 - `/aegix/index/aegix_index.sqlite`
 - `/aegix/index/vector-registry.json`
 
+## Local AI Flow
+
+```bash
+aegixai status --json
+aegixai models --json
+aegixai ask "what should I inspect first?"
+aegixai command "show failed services"
+aegixai grow --json
+```
+
+`aegixai` talks to local Ollama on localhost. It suggests and explains; it does not execute shell commands. Its growth path is proposal-first under `/aegix/models/growth`.
+
 ## Memory Flow
 
 ```bash
@@ -59,4 +71,3 @@ secretsctl policy --json
 ```
 
 Secret handles are metadata, not raw values. Dangerous secret use needs approval metadata and a future broker.
-

@@ -91,6 +91,7 @@ in
       "d ${cfg.root}/memory 0750 aegix aegix - -"
       "d ${cfg.root}/models 0750 aegix aegix - -"
       "d ${cfg.root}/models/ollama 0750 aegix aegix - -"
+      "d ${cfg.root}/models/growth 0770 aegix aegix - -"
       "d ${cfg.root}/data 0750 aegix aegix - -"
       "d ${cfg.root}/data/sqlite 0750 aegix aegix - -"
       "d ${cfg.root}/data/postgres 0750 aegix aegix - -"

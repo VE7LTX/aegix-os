@@ -60,6 +60,8 @@
       agentctl graph --json
       agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
       agentctl receipts --json
+      aegixai status --json
+      aegixai ask "what should I inspect first?"
       secretsctl status --json
       codexcli --version
       obsidianctl path --json
@@ -87,6 +89,7 @@
 
   environment.systemPackages = with pkgs; [
     self.packages.${pkgs.system}.agentctl
+    self.packages.${pkgs.system}.aegixai
     self.packages.${pkgs.system}.aegixtui
     self.packages.${pkgs.system}.codex
     self.packages.${pkgs.system}.codexcli
@@ -122,6 +125,8 @@
   programs.command-not-found.enable = false;
   services.logrotate.enable = false;
   environment.variables.AEGIX_ROOT = "/aegix";
+  environment.variables.AEGIX_AI_MODEL = "qwen2.5:0.5b";
+  environment.variables.OLLAMA_HOST = "http://127.0.0.1:11434";
   environment.shellAliases = {
     aegix-status = "agentctl status --json";
     aegix-doctor = "agentctl doctor --json";
@@ -132,6 +137,10 @@
     aegix-demo = "agentctl run demo-agent --task 'Create preview receipt' --workspace /aegix/scratch/demo --json";
     aegix-receipts = "agentctl receipts --json";
     aegix-events = "agentctl events --json";
+    aegix-ai = "aegixai";
+    aegix-ask = "aegixai ask";
+    aegix-command = "aegixai command";
+    aegix-models = "aegixai models --json";
     aegix-failed = "systemctl --failed --no-pager --plain";
   };
 
@@ -236,6 +245,8 @@ agentctl graph --json
 agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
 agentctl receipts --json
 agentctl events --json
+aegixai status --json
+aegixai ask "what should I inspect first?"
 ```
 
 Rules:
@@ -249,6 +260,8 @@ Rules:
 - Use `agentctl snapshot <session_id> --json` before rollback planning.
 - Use `agentctl rollback <session_id> --json` to show the non-destructive rollback plan.
 - Dangerous actions stay approval-only.
+- Use `aegixai ask "question"` for local model help.
+- Use `aegixai command "task"` for command suggestions. It does not execute them.
 EOF
       ${pkgs.coreutils}/bin/cat > /aegix/runbooks/command-guide.md <<'EOF'
 # Aegix Command Guide
@@ -274,6 +287,34 @@ agentctl inspect <session_id> --json
 agentctl snapshot <session_id> --json
 agentctl rollback <session_id> --json
 ```
+EOF
+      ${pkgs.coreutils}/bin/cat > /aegix/runbooks/local-ai.md <<'EOF'
+# Local Aegix AI
+
+`aegixai` is the native terminal copilot for the preview VM.
+
+Default model:
+
+```text
+qwen2.5:0.5b
+```
+
+Commands:
+
+```bash
+aegixai status --json
+aegixai models --json
+aegixai ask "what should I inspect first?"
+aegixai command "show failed services"
+aegixai grow --json
+```
+
+Rules:
+
+- `aegixai` talks to Ollama on localhost.
+- It suggests commands; it does not execute them.
+- It may propose upgrades in `/aegix/models/growth`.
+- It may not silently upgrade itself, restart services, install packages, or change auth.
 EOF
       ${pkgs.coreutils}/bin/cat > /aegix/runbooks/file-index-graph.md <<'EOF'
 # File Index And Graph
@@ -321,6 +362,8 @@ agentctl graph --json
 agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
 agentctl receipts --json
 agentctl events --json
+aegixai status --json
+aegixai ask "what should I inspect first?"
 secretsctl status --json
 secretsctl handles --json
 codexcli --version
@@ -331,6 +374,30 @@ systemctl status ollama
 ls -la /aegix
 ```
 EOF
+    '';
+  };
+
+  systemd.services.aegix-ollama-model-pull = {
+    description = "Pull Aegix default local Ollama model";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "ollama.service" "network-online.target" "aegix-preview-note.service" ];
+    wants = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "operator";
+      Group = "aegix";
+      TimeoutStartSec = "20min";
+    };
+    script = ''
+      set +e
+      ${pkgs.coreutils}/bin/mkdir -p /aegix/models/growth /aegix/logs
+      ${pkgs.coreutils}/bin/date --iso-8601=seconds > /aegix/logs/ollama-model-pull.log
+      ${pkgs.ollama}/bin/ollama pull qwen2.5:0.5b >> /aegix/logs/ollama-model-pull.log 2>&1
+      rc=$?
+      if [ "$rc" -ne 0 ]; then
+        echo "model pull failed or offline; aegixai will report degraded status" >> /aegix/logs/ollama-model-pull.log
+      fi
+      exit 0
     '';
   };
 

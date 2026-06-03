@@ -20,7 +20,7 @@ Aegix OS should be a preconfigured operating environment for local AI work:
 - OpenClaw runs as a managed suite component with clear permissions
 - Obsidian provides the standard local AI memory vault for runbooks, decisions, project memory, receipts, and handoffs
 - plugin, MCP, and local API servers are treated as first-class AI access surfaces
-- local model services start with Ollama as a localhost-first model API
+- local model services start with Ollama as a localhost-first model API and `aegixai` as the native terminal copilot
 - database services include SQLite, Postgres, vector storage, and time-series storage options
 - network/router and appliance controls are exposed through documented commands with approval gates
 - safety boundaries are visible when actions touch secrets, services, external writes, or host state
@@ -46,6 +46,7 @@ The primary kit is tracked in [docs/PRIMARY_KIT.md](docs/PRIMARY_KIT.md). It cur
 - browser automation profiles
 - developer tools
 - local model tools
+- native local AI chat and command suggestions
 - database, vector storage, and time-series tools
 - file index, graph, SQLite FTS, and vector registry scaffolding
 - system dashboard target
@@ -241,6 +242,7 @@ nix run .#agentctl -- --root ./.aegix-preview graph --json
 nix run .#agentctl -- --root ./.aegix-preview run demo-agent --task "Create preview receipt" --workspace scratch/demo --json
 nix run .#agentctl -- --root ./.aegix-preview receipts --json
 nix run .#agentctl -- --root ./.aegix-preview events --json
+nix run .#aegixai -- status --json
 nix run .#obsidianctl -- path
 nix run .#aegix-vm
 ```

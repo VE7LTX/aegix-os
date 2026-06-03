@@ -9,9 +9,10 @@ Default posture:
 - enabled through `services.aegix.ollama.enable`
 - bound to `127.0.0.1`
 - default port `11434`
+- default starter model `qwen2.5:0.5b`
 - firewall closed by default
 - model state target `/aegix/models/ollama`
-- command surfaces through `agentctl models` and `agentctl ollama`
+- command surfaces through `aegixai`, `agentctl models`, and `agentctl ollama`
 
 NixOS module example:
 
@@ -35,6 +36,43 @@ LAN exposure should require explicit configuration:
   };
 }
 ```
+
+## Native terminal copilot
+
+`aegixai` is the Aegix-native terminal copilot. It talks to local Ollama over localhost and gives agents/operators a small local chat and command-suggestion surface.
+
+Preview commands:
+
+```bash
+aegixai status --json
+aegixai models --json
+aegixai ask "what should I inspect first?"
+aegixai command "show failed services"
+aegixai grow --json
+```
+
+The preview VM attempts to pull `qwen2.5:0.5b` through `aegix-ollama-model-pull.service`. If the VM is offline, boot continues and `aegixai status --json` reports the degraded model state.
+
+`aegixai command` suggests commands only. It does not execute them. Future command execution should go through `agentctl` sessions, capability checks, receipts, and approvals.
+
+## Growth model
+
+The onboard local model should grow by proposing improvements, not by silently mutating the system.
+
+Allowed in preview:
+
+- write growth proposals under `/aegix/models/growth`
+- suggest runbooks, command helpers, model changes, or policy changes
+- summarize receipts and repeated operator workflows
+
+Not allowed without approval:
+
+- installing packages
+- pulling larger models
+- restarting services
+- changing authentication
+- exposing Ollama to the LAN
+- writing to external systems
 
 ## Agent rules
 

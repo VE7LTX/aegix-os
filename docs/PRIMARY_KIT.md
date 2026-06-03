@@ -10,6 +10,7 @@ This document defines the default Aegix OS kit. The purpose is to make the machi
 - `aegixtui` first-entry operator menu
 - `obsidianctl` CLI for Obsidian AI memory
 - `secretsctl` CLI for secret handles, status, and policy
+- `aegixai` CLI for local Ollama chat and command suggestions
 - `codexcli` CLI for Codex-assisted code and system work
 - agent registry
 - session history
@@ -291,6 +292,8 @@ Profiles should have separate cookies, downloads, history, and permissions.
 Default local model profile should support:
 
 - Ollama service
+- `aegixai` native terminal copilot
+- default starter model `qwen2.5:0.5b`
 - llama.cpp adapter
 - model cache directory
 - model registry notes
@@ -299,6 +302,8 @@ Default local model profile should support:
 - cost and budget controls
 
 Ollama should be available as the first local model service because it gives agents a simple local API for model discovery and inference. The default Aegix posture should bind Ollama to localhost, store model state under `/aegix/models/ollama`, and require explicit policy before exposing it to the LAN.
+
+The native copilot should be small, local, and bounded. It may answer questions, suggest commands, and write growth proposals, but it should not silently execute commands, pull larger models, install packages, restart services, or change auth.
 
 See [LOCAL_MODELS.md](LOCAL_MODELS.md) for the service profile.
 

@@ -10,10 +10,12 @@ It includes:
 - `agentctl` preview sessions, receipts, capabilities, events, doctor checks, approvals, and rollback placeholders
 - `aegixtui`
 - `codexcli` and `codex`
+- `aegixai` native local Ollama copilot
 - `obsidianctl`
 - `secretsctl`
 - Obsidian vault folders
 - Ollama service profile
+- default local model pull scaffold for `qwen2.5:0.5b`
 - database/vector/time-series tool suite
 - CLI/TUI operator tools
 - terminal autologin as `operator`
@@ -58,6 +60,9 @@ agentctl graph --json
 agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
 agentctl receipts --json
 agentctl events --json
+aegixai status --json
+aegixai ask "what should I inspect first?"
+aegixai command "show failed services"
 sid=$(basename "$(ls -1 /aegix/receipts/*.json | tail -n1)" .json)
 agentctl inspect "$sid" --json
 agentctl approve "$sid" --cap service.restart:ollama --json
@@ -86,6 +91,10 @@ aegix-graph
 aegix-demo
 aegix-receipts
 aegix-events
+aegix-ai status --json
+aegix-ask "what should I inspect first?"
+aegix-command "show failed services"
+aegix-models
 aegix-failed
 ```
 

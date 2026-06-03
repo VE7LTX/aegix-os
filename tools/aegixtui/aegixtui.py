@@ -60,6 +60,8 @@ Important commands:
   agentctl receipts --json     List generated action receipts
   agentctl caps --json         Show preview capability policy
   agentctl events --json       Show recent Aegix event log entries
+  aegixai status --json        Local Ollama copilot status
+  aegixai ask "..."            Chat with the local model
   secretsctl status --json     Secret store status without values
   codexcli --version           Codex CLI entrypoint
   obsidianctl path --json      Obsidian memory vault path
@@ -175,6 +177,42 @@ MENU = [
         agent_prompt=(
             "Check this before network, service, package, secret, auth, or external "
             "write work. Approval-required actions stay metadata-only in this preview."
+        ),
+    ),
+    MenuItem(
+        "Local AI Status",
+        "Show Ollama availability and the default embedded Aegix model.",
+        ["aegixai", "status", "--json"],
+        agent_prompt=(
+            "Use this to check whether the native local model is ready. If degraded, "
+            "inspect systemctl status ollama and /aegix/logs/ollama-model-pull.log."
+        ),
+    ),
+    MenuItem(
+        "Ask Local AI",
+        "Ask the local Aegix model what to inspect first.",
+        ["aegixai", "ask", "what should I inspect first?"],
+        agent_prompt=(
+            "Use this for local model help without sending context to a cloud model. "
+            "The answer is advisory; use agentctl receipts for proof of actions."
+        ),
+    ),
+    MenuItem(
+        "AI Command Suggestions",
+        "Ask the local model for terminal command suggestions without execution.",
+        ["aegixai", "command", "show failed services and Aegix status"],
+        agent_prompt=(
+            "This suggests commands only. Review before running anything, especially "
+            "service, package, auth, network, secret, or external-write actions."
+        ),
+    ),
+    MenuItem(
+        "AI Growth Proposal",
+        "Write a bounded self-improvement proposal for the local copilot.",
+        ["aegixai", "grow", "--json"],
+        agent_prompt=(
+            "Use this to record how the onboard model should improve. It writes a "
+            "proposal file and does not upgrade itself."
         ),
     ),
     MenuItem(

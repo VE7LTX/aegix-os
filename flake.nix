@@ -79,6 +79,14 @@
           '';
         };
 
+        packages.aegixai = pkgs.writeShellApplication {
+          name = "aegixai";
+          runtimeInputs = [ python ];
+          text = ''
+            exec ${python}/bin/python ${self}/tools/aegixai/aegixai.py "$@"
+          '';
+        };
+
         packages.codexcli = pkgs.writeShellApplication {
           name = "codexcli";
           runtimeInputs = [ pkgs.nodejs pkgs.git ];

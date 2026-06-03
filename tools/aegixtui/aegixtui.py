@@ -40,11 +40,21 @@ Important paths:
   /aegix                       System root for agent-facing state
   /aegix/notes/obsidian        File-backed AI memory vault
   /aegix/projects              Project workspaces
+  /aegix/sessions              Agent session state
   /aegix/receipts              Action receipts
+  /aegix/approvals             Approval token metadata
+  /aegix/checkpoints           Rollback checkpoint metadata
+  /aegix/logs/events.jsonl     Agent-readable event stream
   /aegix/secrets               Secret metadata and handles, not raw values
 
 Important commands:
   agentctl status --json       Aegix operator status
+  agentctl doctor --json       Check paths, tools, and failed units
+  agentctl paths --json        Show agent-facing filesystem map
+  agentctl run demo-agent --task "Preview" --workspace /aegix/scratch/demo --json
+  agentctl receipts --json     List generated action receipts
+  agentctl caps --json         Show preview capability policy
+  agentctl events --json       Show recent Aegix event log entries
   secretsctl status --json     Secret store status without values
   codexcli --version           Codex CLI entrypoint
   obsidianctl path --json      Obsidian memory vault path
@@ -67,13 +77,62 @@ MENU = [
     ),
     MenuItem(
         "Aegix Status",
-        "Inspect the scaffold command registry and operator status.",
+        "Inspect the command registry and operator status.",
         ["agentctl", "status", "--json"],
+    ),
+    MenuItem(
+        "Agent Doctor",
+        "Run agent-facing health checks for paths, tools, and systemd failures.",
+        ["agentctl", "doctor", "--json"],
+    ),
+    MenuItem(
+        "Aegix Paths",
+        "Show the stable filesystem map and quick operator commands.",
+        ["agentctl", "paths", "--json"],
     ),
     MenuItem(
         "What Can I Do?",
         "List the current Aegix command groups.",
         ["agentctl", "commands", "--json"],
+    ),
+    MenuItem(
+        "Run Demo Session",
+        "Create a preview-safe local agent session and receipt under /aegix.",
+        [
+            "agentctl",
+            "run",
+            "demo-agent",
+            "--task",
+            "Create a Preview v0.2 receipt",
+            "--workspace",
+            "/aegix/scratch/demo",
+            "--json",
+        ],
+    ),
+    MenuItem(
+        "Recent Receipts",
+        "List generated session receipts.",
+        ["agentctl", "receipts", "--json"],
+    ),
+    MenuItem(
+        "Event Log",
+        "Show recent JSONL events written by Aegix control commands.",
+        ["agentctl", "events", "--json"],
+    ),
+    MenuItem(
+        "Capabilities",
+        "Show preview policy for local writes, approvals, and denied actions.",
+        ["agentctl", "caps", "--json"],
+    ),
+    MenuItem(
+        "Approvals",
+        "List approval token metadata created by agentctl approve.",
+        ["agentctl", "approvals", "--json"],
+    ),
+    MenuItem(
+        "Snapshots",
+        "List snapshot metadata created by agentctl snapshot.",
+        ["agentctl", "snapshots", "--json"],
     ),
     MenuItem(
         "Codex CLI",

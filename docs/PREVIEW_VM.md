@@ -7,7 +7,7 @@ NixOS is still the reproducible base layer. The operator-facing console, login i
 It includes:
 
 - `/aegix` filesystem layout
-- `agentctl`
+- `agentctl` preview sessions, receipts, capabilities, events, doctor checks, approvals, and rollback placeholders
 - `aegixtui`
 - `codexcli` and `codex`
 - `obsidianctl`
@@ -17,7 +17,10 @@ It includes:
 - database/vector/time-series tool suite
 - CLI/TUI operator tools
 - terminal autologin as `operator`
-- first-entry retro color TUI menu with help, checks, paths, secrets, and shell handoff
+- first-entry retro color TUI menu with help, demo sessions, receipts, capabilities, secrets, checks, paths, and shell handoff
+- agent-readable event log at `/aegix/logs/events.jsonl`
+- first-agent runbook at `/aegix/runbooks/first-agent.md`
+- rollback policy scaffold at `/aegix/policy/rollback.yaml`
 - Aegix console issue, MOTD, and shell banner
 - quieter boot logging for a cleaner appliance-style startup
 
@@ -44,7 +47,18 @@ Early firmware lines from SeaBIOS, iPXE, or QEMU are expected in this VM preview
 ```bash
 aegixtui
 agentctl status --json
+agentctl doctor --json
+agentctl paths --json
 agentctl commands --json
+agentctl caps --json
+agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
+agentctl receipts --json
+agentctl events --json
+sid=$(basename "$(ls -1 /aegix/receipts/*.json | tail -n1)" .json)
+agentctl inspect "$sid" --json
+agentctl approve "$sid" --cap service.restart:ollama --json
+agentctl snapshot "$sid" --json
+agentctl rollback "$sid" --json
 secretsctl status --json
 secretsctl handles --json
 codexcli --version
@@ -53,6 +67,19 @@ obsidianctl search Aegix --json
 systemctl status aegix-agentd
 systemctl status ollama
 ls -la /aegix
+```
+
+`agentctl approve`, `agentctl snapshot`, and `agentctl rollback` are metadata scaffolds in this preview. They do not execute dangerous actions or destructive rollback.
+
+Convenience aliases are available in the VM shell:
+
+```bash
+aegix-doctor
+aegix-paths
+aegix-demo
+aegix-receipts
+aegix-events
+aegix-failed
 ```
 
 ## Windows and WSL

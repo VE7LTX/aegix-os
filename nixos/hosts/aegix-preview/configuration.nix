@@ -54,6 +54,9 @@
     Quick checks:
       aegixtui
       agentctl status --json
+      agentctl caps --json
+      agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
+      agentctl receipts --json
       secretsctl status --json
       codexcli --version
       obsidianctl path --json
@@ -115,6 +118,16 @@
 
   programs.command-not-found.enable = false;
   services.logrotate.enable = false;
+  environment.variables.AEGIX_ROOT = "/aegix";
+  environment.shellAliases = {
+    aegix-status = "agentctl status --json";
+    aegix-doctor = "agentctl doctor --json";
+    aegix-paths = "agentctl paths --json";
+    aegix-demo = "agentctl run demo-agent --task 'Create preview receipt' --workspace /aegix/scratch/demo --json";
+    aegix-receipts = "agentctl receipts --json";
+    aegix-events = "agentctl events --json";
+    aegix-failed = "systemctl --failed --no-pager --plain";
+  };
 
   services.aegix = {
     enable = true;
@@ -143,6 +156,7 @@
     };
     script = ''
       ${self.packages.${pkgs.system}.obsidianctl}/bin/obsidianctl init --vault /aegix/notes/obsidian
+      ${pkgs.coreutils}/bin/chmod 0770 /aegix/scratch /aegix/projects /aegix/sessions /aegix/receipts /aegix/approvals /aegix/snapshots /aegix/checkpoints /aegix/logs /aegix/runbooks /aegix/notes/obsidian
       ${pkgs.coreutils}/bin/cat > /aegix/secrets/handles.json <<'EOF'
 [
   {
@@ -165,6 +179,65 @@
   }
 ]
 EOF
+      ${pkgs.coreutils}/bin/cat > /aegix/policy/capabilities.yaml <<'EOF'
+mode: preview-friendly
+allowed_without_approval:
+  - files.read
+  - status.read
+  - logs.read
+  - agent.session.create
+  - receipt.write
+local_write_roots:
+  - /aegix/scratch
+  - /aegix/projects
+approval_required:
+  - external.write
+  - secret.read
+  - service.restart
+  - package.install
+  - auth.change
+  - system.modify
+denied_by_default:
+  - money.movement
+  - device.sensor
+  - network.lan_scan
+EOF
+      ${pkgs.coreutils}/bin/cat > /aegix/policy/rollback.yaml <<'EOF'
+mode: preview-metadata-only
+default_behavior:
+  - create receipt before reporting completion
+  - create checkpoint metadata before rollback
+  - show restore plan before modifying files
+  - require approval token before destructive rollback
+deferred_backends:
+  - btrfs snapshots
+  - zfs snapshots
+  - nix generation rollback
+  - declarative config patch reversal
+EOF
+      ${pkgs.coreutils}/bin/cat > /aegix/runbooks/first-agent.md <<'EOF'
+# First Agent Runbook
+
+Start here after boot:
+
+```bash
+agentctl doctor --json
+agentctl paths --json
+agentctl caps --json
+agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
+agentctl receipts --json
+agentctl events --json
+```
+
+Rules:
+
+- Use `/aegix/scratch` for experiments.
+- Use `/aegix/projects` for project work.
+- Leave a receipt for every meaningful write.
+- Use `agentctl snapshot <session_id> --json` before rollback planning.
+- Use `agentctl rollback <session_id> --json` to show the non-destructive rollback plan.
+- Dangerous actions stay approval-only.
+EOF
       ${pkgs.coreutils}/bin/cat > /aegix/notes/obsidian/00-inbox/aegix-preview.md <<'EOF'
 # Aegix Preview
 
@@ -175,7 +248,13 @@ Try:
 ```bash
 aegixtui
 agentctl status --json
+agentctl doctor --json
+agentctl paths --json
 agentctl commands --json
+agentctl caps --json
+agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json
+agentctl receipts --json
+agentctl events --json
 secretsctl status --json
 secretsctl handles --json
 codexcli --version

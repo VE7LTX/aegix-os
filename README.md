@@ -156,6 +156,8 @@ OpenClaw gets the benefit of local tools. Aegix owns the boundary.
     openclaw-agent/
   commands/
   projects/
+  sessions/
+  checkpoints/
   memory/
   models/
     ollama/
@@ -170,6 +172,7 @@ OpenClaw gets the benefit of local tools. Aegix owns the boundary.
   api/
   plugins/
   receipts/
+  approvals/
   policy/
   secrets/
   appliances/
@@ -226,11 +229,17 @@ git clone https://github.com/VE7LTX/aegix-os.git
 cd aegix-os
 nix flake check
 nix run .#agentctl -- --help
+nix run .#agentctl -- --root ./.aegix-preview doctor --json
+nix run .#agentctl -- --root ./.aegix-preview paths --json
+nix run .#agentctl -- --root ./.aegix-preview caps --json
+nix run .#agentctl -- --root ./.aegix-preview run demo-agent --task "Create preview receipt" --workspace scratch/demo --json
+nix run .#agentctl -- --root ./.aegix-preview receipts --json
+nix run .#agentctl -- --root ./.aegix-preview events --json
 nix run .#obsidianctl -- path
 nix run .#aegix-vm
 ```
 
-`agentctl` and `obsidianctl` are scaffold commands today. `aegix-vm` builds the preview NixOS VM described in [docs/PREVIEW_VM.md](docs/PREVIEW_VM.md).
+`agentctl` now includes Preview v0.2 session, receipt, event log, doctor, path map, capability, approval metadata, snapshot/checkpoint metadata, and rollback planning commands. `aegix-vm` builds the preview NixOS VM described in [docs/PREVIEW_VM.md](docs/PREVIEW_VM.md).
 
 ## License
 

@@ -13,6 +13,13 @@
 
 - runnable NixOS VM profile
 - `agentctl` command groups
+- preview session runner with JSON session state
+- JSON receipts for preview-safe local actions
+- JSONL event log for simple agent/operator debugging
+- `agentctl doctor` and `agentctl paths` debug surfaces
+- preview capability policy surfaced by CLI/TUI
+- approval-token metadata scaffold
+- snapshot, checkpoint, and rollback metadata placeholders
 - `agentd` session runner
 - `capd` capability broker
 - rootless Podman runtime

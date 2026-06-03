@@ -73,6 +73,30 @@ Planned Aegix policy behavior:
 
 The TUI should always preserve a clean console escape path. Pressing `q` exits to the normal shell, and `aegixtui` can be launched again manually. Color should be used where the terminal supports it, with a monochrome fallback for limited serial consoles.
 
+Preview v0.2 TUI entries:
+
+- `Agent Doctor` checks writable paths, tool entrypoints, and failed systemd units.
+- `Aegix Paths` shows stable agent-facing paths and quick commands.
+- `Run Demo Session` creates a scoped local session and JSON receipt.
+- `Recent Receipts` lists receipt metadata.
+- `Event Log` shows recent JSONL control-plane events.
+- `Capabilities` shows the preview-friendly policy.
+- `Approvals` lists approval token metadata.
+- `Snapshots` lists snapshot metadata.
+
+Preview v0.2 CLI commands:
+
+- `agentctl doctor --json`
+- `agentctl paths --json`
+- `agentctl run demo-agent --task "Create preview receipt" --workspace /aegix/scratch/demo --json`
+- `agentctl receipts --json`
+- `agentctl events --json`
+- `agentctl inspect <session_id> --json`
+- `agentctl caps --json`
+- `agentctl approve <session_id> --cap service.restart:ollama --json`
+- `agentctl snapshot <session_id> --json`
+- `agentctl rollback <session_id> --json`
+
 ## Secrets CLI standard
 
 `secretsctl` is the preview operator surface for secret management. It should report secret-store status, known handles, and policy rules, but it must not print raw secret values.
@@ -84,6 +108,21 @@ Preview commands:
 - `secretsctl policy --json`
 
 The final backend should be `secretsd` with age/sops/pass-compatible storage and scoped broker calls for agents.
+
+## Event log standard
+
+Preview control commands append small JSONL records to `/aegix/logs/events.jsonl`. This is not the final audit log, but it gives agents and operators a simple timeline while receipts, approvals, and rollback metadata mature.
+
+Use:
+
+- `agentctl events --json`
+- `tail -n 50 /aegix/logs/events.jsonl`
+
+## Rollback scaffold standard
+
+Preview rollback is metadata-only. `agentctl snapshot <session_id> --json` writes snapshot and checkpoint records, and `agentctl rollback <session_id> --json` reports the planned restore behavior without changing files.
+
+The seeded policy file `/aegix/policy/rollback.yaml` documents the intended future backends: btrfs/ZFS snapshots, Nix generation rollback, and declarative config patch reversal.
 
 ## Agent rules
 

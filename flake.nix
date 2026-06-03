@@ -63,6 +63,14 @@
           '';
         };
 
+        packages.aegixtui = pkgs.writeShellApplication {
+          name = "aegixtui";
+          runtimeInputs = [ python pkgs.ncurses ];
+          text = ''
+            exec ${python}/bin/python ${self}/tools/aegixtui/aegixtui.py "$@"
+          '';
+        };
+
         packages.codexcli = pkgs.writeShellApplication {
           name = "codexcli";
           runtimeInputs = [ pkgs.nodejs pkgs.git ];

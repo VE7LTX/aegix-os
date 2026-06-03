@@ -8,6 +8,7 @@ It includes:
 
 - `/aegix` filesystem layout
 - `agentctl`
+- `aegixtui`
 - `codexcli` and `codex`
 - `obsidianctl`
 - Obsidian vault folders
@@ -15,6 +16,7 @@ It includes:
 - database/vector/time-series tool suite
 - CLI/TUI operator tools
 - terminal autologin as `operator`
+- first-entry TUI menu with help, checks, paths, and shell handoff
 - Aegix console issue, MOTD, and shell banner
 - quieter boot logging for a cleaner appliance-style startup
 
@@ -32,11 +34,14 @@ nix run .#aegix-vm
 
 The preview is terminal-first. Login is automatic as `operator`; the password is `aegix` if needed.
 
+After login, `aegixtui` opens as the first-entry operator menu. Press `q` to return to the shell. Run `aegixtui` again at any time to reopen the menu.
+
 Early firmware lines from SeaBIOS, iPXE, or QEMU are expected in this VM preview. The OS login surface should present as Aegix OS Preview once the serial console starts.
 
 ## Inspect
 
 ```bash
+aegixtui
 agentctl status --json
 agentctl commands --json
 codexcli --version

@@ -52,6 +52,7 @@
     Agent-first Linux appliance profile
 
     Quick checks:
+      aegixtui
       agentctl status --json
       codexcli --version
       obsidianctl path --json
@@ -69,12 +70,17 @@
       printf 'Aegix OS Preview\n'
       printf 'Agent-first Linux appliance console\n'
       printf 'Root: /aegix | Memory: /aegix/notes/obsidian | Models: Ollama localhost:11434\n'
+      printf 'Opening operator TUI. Press q to return to shell. Run aegixtui anytime.\n'
       printf '\n'
+      if [ -z "$AEGIX_NO_TUI" ] && command -v aegixtui >/dev/null 2>&1; then
+        aegixtui
+      fi
     fi
   '';
 
   environment.systemPackages = with pkgs; [
     self.packages.${pkgs.system}.agentctl
+    self.packages.${pkgs.system}.aegixtui
     self.packages.${pkgs.system}.codex
     self.packages.${pkgs.system}.codexcli
     self.packages.${pkgs.system}.obsidianctl
@@ -143,6 +149,7 @@ This VM previews the Aegix OS AI-first operator layout.
 Try:
 
 ```bash
+aegixtui
 agentctl status --json
 agentctl commands --json
 codexcli --version

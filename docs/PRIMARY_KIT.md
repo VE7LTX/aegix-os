@@ -7,6 +7,7 @@ This document defines the default Aegix OS kit. The purpose is to make the machi
 ### AI operator interface
 
 - `agentctl` CLI/TUI entrypoint
+- `aegixtui` first-entry operator menu
 - `obsidianctl` CLI for Obsidian AI memory
 - `codexcli` CLI for Codex-assisted code and system work
 - agent registry
@@ -156,6 +157,8 @@ Primary agent memory should be written into this vault or into canonical project
 The terminal kit is defined in [CLI_TUI_KIT.md](CLI_TUI_KIT.md). The default profile should include fast, scriptable tools for search, navigation, editing, previews, Git, process inspection, disk usage, and Markdown reading.
 
 The important rule is that agents should prefer documented command access over GUI automation whenever command access is available.
+
+The first operator login should open `aegixtui`, a console home screen that shows help, common actions, core health checks, important paths, and a clear exit to the shell.
 
 Codex CLI should be available through the Aegix-managed `codexcli` command, with `codex` kept as a compatibility alias. In the final system, Codex should run as an agent/tool client inside Aegix capability boundaries rather than as an unconstrained host shell.
 
@@ -386,6 +389,7 @@ These are intentionally not part of the first kit:
 The first practical build should make these commands real:
 
 - `agentctl status`
+- `aegixtui`
 - `agentctl commands`
 - `agentctl inspect`
 - `agentctl receipts`

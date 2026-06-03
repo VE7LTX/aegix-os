@@ -7,6 +7,7 @@ Aegix OS should make terminal tools first-class for humans and agents. A termina
 These should be available in the base developer/operator profile:
 
 - `agentctl` for Aegix sessions, receipts, commands, approvals, and system views
+- `aegixtui` for the first-entry operator home screen
 - `obsidianctl` for Obsidian AI memory vault operations
 - `codexcli` for Codex CLI access through the Aegix operator environment
 - `codex` as a compatibility alias for operators who expect the upstream command name
@@ -26,6 +27,7 @@ These should be available in the base developer/operator profile:
 
 These should be available where a terminal interface is useful:
 
+- `aegixtui` for first-run help, command menus, system checks, and shell handoff
 - `tmux` for persistent sessions
 - `neovim` and `helix` for terminal editing
 - `lazygit` for Git inspection and staging
@@ -56,6 +58,18 @@ Planned Aegix policy behavior:
 - route file, shell, network, and secret access through the capability broker
 - write receipts for agent actions
 - expose version and auth status through `agentctl codex`
+
+## First-entry TUI standard
+
+`aegixtui` should be the default first screen for the preview operator account. It is not a desktop shell; it is a console home screen that answers:
+
+- what can I do here?
+- where are the important files?
+- which commands should I run first?
+- are core services healthy?
+- how do I get back to the shell?
+
+The TUI should always preserve a clean console escape path. Pressing `q` exits to the normal shell, and `aegixtui` can be launched again manually.
 
 ## Agent rules
 

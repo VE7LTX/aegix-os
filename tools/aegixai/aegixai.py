@@ -21,6 +21,7 @@ from typing import Any
 
 DEFAULT_ROOT = Path(os.environ.get("AEGIX_ROOT", "/aegix"))
 DEFAULT_MODEL = os.environ.get("AEGIX_AI_MODEL", "qwen3.5:0.8b")
+DEFAULT_FALLBACK_MODEL = os.environ.get("AEGIX_AI_FALLBACK_MODEL", "tinyllama")
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 DEFAULT_TIMEOUT = int(os.environ.get("AEGIX_AI_TIMEOUT", "600"))
 DEFAULT_NUM_PREDICT = int(os.environ.get("AEGIX_AI_NUM_PREDICT", "192"))
@@ -93,18 +94,21 @@ def ollama_json(args: argparse.Namespace, path: str, payload: dict[str, Any] | N
 
 
 class Spinner:
-    def __init__(self, args: argparse.Namespace, message: str) -> None:
+    def __init__(self, args: argparse.Namespace, message: str, timeout_seconds: int | None = None) -> None:
         self.enabled = (
             not getattr(args, "json", False)
             and not getattr(args, "no_spinner", False)
             and sys.stderr.isatty()
         )
         self.message = message
+        self.timeout_seconds = timeout_seconds
         self.stop = threading.Event()
         self.thread: threading.Thread | None = None
+        self.started_at = 0.0
 
     def __enter__(self) -> "Spinner":
         if self.enabled:
+            self.started_at = time.monotonic()
             self.thread = threading.Thread(target=self._run, daemon=True)
             self.thread.start()
         elif not getattr(self, "json", False):
@@ -121,7 +125,12 @@ class Spinner:
         frames = "|/-\\"
         idx = 0
         while not self.stop.is_set():
-            print(f"\r{frames[idx % len(frames)]} {self.message}", end="", file=sys.stderr, flush=True)
+            remaining = ""
+            if self.timeout_seconds is not None:
+                elapsed = int(time.monotonic() - self.started_at)
+                countdown = max(0, self.timeout_seconds - elapsed)
+                remaining = f" ({countdown}s left)"
+            print(f"\r{frames[idx % len(frames)]} {self.message}{remaining}", end="", file=sys.stderr, flush=True)
             idx += 1
             time.sleep(0.2)
 
@@ -158,6 +167,7 @@ def helper_prompt(command: str) -> dict[str, Any]:
     return {
         "intent": f"aegixai {command} talks to local Ollama through localhost only.",
         "default_model": DEFAULT_MODEL,
+        "fallback_model": DEFAULT_FALLBACK_MODEL,
         "timeout_seconds": DEFAULT_TIMEOUT,
         "safety_notes": [
             "This copilot suggests commands; it does not execute commands on your behalf.",
@@ -198,8 +208,10 @@ def cmd_status(args: argparse.Namespace) -> int:
         "ollama_available": available,
         "ollama_url": getattr(args, "ollama_url", DEFAULT_OLLAMA_URL),
         "default_model": args.model,
+        "fallback_model": DEFAULT_FALLBACK_MODEL,
         "models": models,
         "model_present": args.model in models,
+        "fallback_present": DEFAULT_FALLBACK_MODEL in models,
         "error": error,
         "first_inspection_brief": first_inspection_brief(),
         "agent_help": helper_prompt("status"),
@@ -214,6 +226,7 @@ def cmd_models(args: argparse.Namespace) -> int:
             "command": "models",
             "models": tags.get("models", []),
             "default_model": args.model,
+            "fallback_model": DEFAULT_FALLBACK_MODEL,
             "agent_help": helper_prompt("models"),
         }
         return emit(args, payload)
@@ -247,7 +260,9 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
         "ollama_available": ollama_available,
         "ollama_error": ollama_error,
         "default_model": args.model,
+        "fallback_model": DEFAULT_FALLBACK_MODEL,
         "model_present": args.model in models,
+        "fallback_present": DEFAULT_FALLBACK_MODEL in models,
         "models": models,
         "timeout_seconds": args.timeout,
         "likely_issue": "cold model load or slow software-emulated inference" if ollama_available and args.model in models else "ollama unavailable or model missing",
@@ -263,35 +278,71 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
     return emit(args, payload, 0 if ollama_available else 1)
 
 
-def ask_model(args: argparse.Namespace, prompt: str, system: str) -> dict[str, Any]:
-    response = ollama_json(
-        args,
-        "/api/chat",
-        {
-            "model": args.model,
-            "stream": False,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-            "options": {
-                "num_predict": args.num_predict,
-                "temperature": 0.2,
+def ask_model_once(args: argparse.Namespace, prompt: str, system: str, model: str) -> dict[str, Any]:
+    try:
+        response = ollama_json(
+            args,
+            "/api/chat",
+            {
+                "model": model,
+                "stream": False,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                "options": {
+                    "num_predict": args.num_predict,
+                    "temperature": 0.2,
+                },
             },
-        },
-        timeout=args.timeout,
-    )
+            timeout=args.timeout,
+        )
+    except (OSError, urllib.error.URLError, TimeoutError) as exc:
+        return {
+            "model": model,
+            "response": "",
+            "raw": None,
+            "error": f"{exc.__class__.__name__}: {exc}",
+        }
     message = response.get("message", {})
     return {
-        "model": args.model,
+        "model": model,
         "response": message.get("content", ""),
         "raw": response,
+        "error": None,
     }
+
+
+def ask_model(args: argparse.Namespace, prompt: str, system: str) -> dict[str, Any]:
+    attempts: list[dict[str, Any]] = []
+    primary = ask_model_once(args, prompt, system, args.model)
+    attempts.append(primary)
+    if primary.get("response"):
+        primary["attempts"] = attempts
+        primary["fallback_used"] = False
+        return primary
+
+    fallback_model = DEFAULT_FALLBACK_MODEL
+    if fallback_model and fallback_model != args.model:
+        fallback = ask_model_once(args, prompt, system, fallback_model)
+        attempts.append(fallback)
+        if fallback.get("response"):
+            fallback["attempts"] = attempts
+            fallback["fallback_used"] = True
+            fallback["fallback_from"] = args.model
+            fallback["fallback_model"] = fallback_model
+            return fallback
+
+    primary["attempts"] = attempts
+    primary["fallback_used"] = False
+    if fallback_model and fallback_model != args.model:
+        primary["fallback_model"] = fallback_model
+    return primary
 
 
 def cmd_warmup(args: argparse.Namespace) -> int:
     try:
-        with Spinner(args, f"warming {args.model}; first load can be slow on this VM"):
+        with Spinner(args, f"warming {args.model}; first load can be slow on this VM", args.timeout):
             result = ask_model(args, "Reply with exactly: ready", SYSTEM_PROMPT)
         payload = {"command": "warmup", "status": "completed", **result, "agent_help": helper_prompt("warmup")}
         if args.json:
@@ -314,7 +365,7 @@ def cmd_warmup(args: argparse.Namespace) -> int:
 
 def cmd_ask(args: argparse.Namespace) -> int:
     try:
-        with Spinner(args, f"waiting for {args.model}; first response may take several minutes under QEMU TCG"):
+        with Spinner(args, f"waiting for {args.model}; first response may take several minutes under QEMU TCG", args.timeout):
             result = ask_model(args, args.prompt, SYSTEM_PROMPT)
         payload = {"command": "ask", **result, "agent_help": helper_prompt("ask")}
         if args.json:
@@ -337,7 +388,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
 def cmd_command(args: argparse.Namespace) -> int:
     prompt = f"Operator request: {args.prompt}\nReturn suggested terminal commands and explain approval needs."
     try:
-        with Spinner(args, f"waiting for {args.model}; generating command suggestions"):
+        with Spinner(args, f"waiting for {args.model}; generating command suggestions", args.timeout):
             result = ask_model(args, prompt, SYSTEM_PROMPT + "\n" + COMMAND_ASSIST_PROMPT)
         payload = {
             "command": "command",

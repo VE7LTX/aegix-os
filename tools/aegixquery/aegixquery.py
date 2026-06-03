@@ -12,6 +12,8 @@ import shutil
 import shlex
 import subprocess
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,7 @@ from typing import Any
 
 DEFAULT_ROOT = Path(os.environ.get("AEGIX_ROOT", "/aegix"))
 DEFAULT_MODEL = os.environ.get("AEGIX_AI_MODEL", "qwen3.5:0.8b")
+DEFAULT_FALLBACK_MODEL = os.environ.get("AEGIX_AI_FALLBACK_MODEL", "tinyllama")
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 DEFAULT_TIMEOUT = int(os.environ.get("AEGIX_AI_TIMEOUT", "600"))
 DEFAULT_NUM_PREDICT = int(os.environ.get("AEGIX_AI_NUM_PREDICT", "192"))
@@ -169,6 +172,42 @@ def format_system_specs_answer(specs: dict[str, Any]) -> str:
 def write_tail_file(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+class CountdownSpinner:
+    def __init__(self, enabled: bool, message: str, timeout_seconds: int | None = None) -> None:
+        self.enabled = enabled
+        self.message = message
+        self.timeout_seconds = timeout_seconds
+        self.stop = threading.Event()
+        self.thread: threading.Thread | None = None
+        self.started_at = 0.0
+
+    def __enter__(self) -> "CountdownSpinner":
+        if self.enabled:
+            self.started_at = time.monotonic()
+            self.thread = threading.Thread(target=self._run, daemon=True)
+            self.thread.start()
+        return self
+
+    def __exit__(self, _exc_type: object, _exc: object, _tb: object) -> None:
+        self.stop.set()
+        if self.thread:
+            self.thread.join(timeout=1)
+            print("\r" + " " * min(120, len(self.message) + 16) + "\r", end="", file=sys.stderr)
+
+    def _run(self) -> None:
+        frames = "|/-\\"
+        idx = 0
+        while not self.stop.is_set():
+            countdown = ""
+            if self.timeout_seconds is not None:
+                elapsed = int(time.monotonic() - self.started_at)
+                remaining = max(0, self.timeout_seconds - elapsed)
+                countdown = f" ({remaining}s left)"
+            print(f"\r{frames[idx % len(frames)]} {self.message}{countdown}", end="", file=sys.stderr, flush=True)
+            idx += 1
+            time.sleep(0.2)
 
 
 def human_bytes(value: int | None) -> str:
@@ -640,7 +679,7 @@ def execute_tool(root: Path, tool_call: dict[str, Any], tail_path: Path) -> dict
     return {"error": f"unknown tool: {name}"}
 
 
-def run_tool_loop(
+def run_tool_attempt(
     root: Path,
     prompt: str,
     tail_path: Path,
@@ -651,6 +690,8 @@ def run_tool_loop(
     ollama_url: str,
     timeout: int,
     num_predict: int,
+    *,
+    json_mode: bool,
 ) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
     tool_json = json.dumps(tool_catalog(), indent=2, sort_keys=True)
     context_text = build_context(root, prompt, tail_text, history_text)
@@ -664,7 +705,8 @@ def run_tool_loop(
     last_response: dict[str, Any] = {}
 
     for _ in range(4):
-        last_response = chat_backend_request(messages, model, ollama_url, timeout, num_predict)
+        with CountdownSpinner(not json_mode and sys.stderr.isatty(), f"waiting for {model}", timeout):
+            last_response = chat_backend_request(messages, model, ollama_url, timeout, num_predict)
         if last_response.get("error"):
             return "", trace, last_response
         message = last_response.get("message") or {}
@@ -692,6 +734,72 @@ def run_tool_loop(
             return str(final_answer), trace, last_response
         return content, trace, last_response
     return "", trace, last_response
+
+
+def run_tool_loop(
+    root: Path,
+    prompt: str,
+    tail_path: Path,
+    tail_text: str,
+    history_text: str,
+    prefetch_text: str,
+    model: str,
+    ollama_url: str,
+    timeout: int,
+    num_predict: int,
+    *,
+    json_mode: bool,
+) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
+    model_chain = [model]
+    if DEFAULT_FALLBACK_MODEL and DEFAULT_FALLBACK_MODEL != model:
+        model_chain.append(DEFAULT_FALLBACK_MODEL)
+    attempts: list[dict[str, Any]] = []
+    final_trace: list[dict[str, Any]] = []
+    final_backend: dict[str, Any] = {}
+
+    for model_name in model_chain:
+        response, trace, backend = run_tool_attempt(
+            root,
+            prompt,
+            tail_path,
+            tail_text,
+            history_text,
+            prefetch_text,
+            model_name,
+            ollama_url,
+            timeout,
+            num_predict,
+            json_mode=json_mode,
+        )
+        attempts.append(
+            {
+                "model": model_name,
+                "response_present": bool(response),
+                "error": backend.get("error"),
+                "tool_trace_count": len(trace),
+            }
+        )
+        if response:
+            final_backend = {
+                "model": model_name,
+                "fallback_used": model_name != model,
+                "attempts": attempts,
+                "backend": backend,
+            }
+            return response, trace, final_backend
+        final_trace = trace
+        final_backend = {
+            "model": model_name,
+            "fallback_used": model_name != model,
+            "attempts": attempts,
+            "backend": backend,
+        }
+
+    if not final_backend:
+        final_backend = {"model": model, "fallback_used": False, "attempts": attempts, "error": "model returned no final answer"}
+    elif not final_backend.get("backend", {}).get("error") and not final_backend.get("attempts"):
+        final_backend["error"] = "model returned no final answer"
+    return "", final_trace, final_backend
 
 
 def write_chat_note(
@@ -828,6 +936,7 @@ def main(argv: list[str] | None = None) -> int:
         ollama_url=args.ollama_url,
         timeout=args.timeout,
         num_predict=args.num_predict,
+        json_mode=args.json,
     )
     error = backend_payload.get("error") if isinstance(backend_payload, dict) else None
     if not response and not error:
@@ -862,7 +971,8 @@ def main(argv: list[str] | None = None) -> int:
 
     vault = obsidian_vault(root)
     vault.mkdir(parents=True, exist_ok=True)
-    note_path = write_chat_note(vault, prompt, tail_text, response, args.model, root, tool_trace=tool_trace)
+    model_used = backend_payload.get("model") if isinstance(backend_payload, dict) else args.model
+    note_path = write_chat_note(vault, prompt, tail_text, response, str(model_used or args.model), root, tool_trace=tool_trace)
 
     index_result = None
     agentctl_cmd = find_agentctl()
@@ -875,7 +985,8 @@ def main(argv: list[str] | None = None) -> int:
         "response": response,
         "tail_path": str(tail_path),
         "note_path": str(note_path),
-        "model": args.model,
+        "model": str(model_used or args.model),
+        "requested_model": args.model,
         "mode": f"fallback-{fallback_mode}" if fallback_mode else "tool-calling",
         "tool_trace": tool_trace,
         "backend": backend_payload,

@@ -153,6 +153,51 @@ print(json.dumps({"message": {"content": ""}}))
         assert "CPU" in vm_specs_payload["response"] or "Memory" in vm_specs_payload["response"]
         assert vm_specs_payload["fallback"] == "system-specs"
 
+        switch_backend = root / "switching_chat_backend.py"
+        switch_backend.write_text(
+            """#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import sys
+import time
+
+
+request = json.load(sys.stdin)
+model = request.get("model", "")
+if model.startswith("qwen"):
+    time.sleep(3)
+else:
+    content = {
+        "tool_calls": [],
+        "final_answer": "tinyllama answered after qwen timed out.",
+    }
+    print(json.dumps({"message": {"role": "assistant", "content": json.dumps(content)}}))
+""",
+            encoding="utf-8",
+        )
+
+        tiny_env = env.copy()
+        tiny_env["AEGIX_QUERY_CHAT_CMD"] = f'"{sys.executable}" "{switch_backend}"'
+        tiny_env["AEGIX_QUERY_TELEMETRY_JSON"] = ""
+        tiny_env["AEGIX_QUERY_CONTEXT_FILE"] = str(tail_file)
+        tiny = subprocess.run(
+            [sys.executable, str(QUERY), "--root", str(root), "--timeout", "1", "--json", "what", "should", "I", "inspect", "first"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=tiny_env,
+        )
+        assert tiny.returncode == 0, tiny.stderr
+        tiny_payload = json.loads(tiny.stdout)
+        assert tiny_payload["mode"] == "tool-calling"
+        assert tiny_payload["model"] == "tinyllama"
+        assert tiny_payload["requested_model"] == "qwen3.5:0.8b"
+        assert tiny_payload["backend"]["fallback_used"] is True
+        assert tiny_payload["backend"]["attempts"][0]["model"] == "qwen3.5:0.8b"
+        assert tiny_payload["backend"]["attempts"][1]["model"] == "tinyllama"
+        assert tiny_payload["response"] == "tinyllama answered after qwen timed out."
+
         indexed = subprocess.run(
             [sys.executable, str(REPO / "tools" / "agentctl" / "agentctl.py"), "--root", str(root), "search-index", "ram usage", "--json"],
             check=False,

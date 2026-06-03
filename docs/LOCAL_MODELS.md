@@ -10,6 +10,7 @@ Default posture:
 - bound to `127.0.0.1`
 - default port `11434`
 - default starter model `qwen3.5:0.8b`
+- fallback model `tinyllama`
 - firewall closed by default
 - model state target `/aegix/models/ollama`
 - command surfaces through `aegixai`, `agentctl models`, and `agentctl ollama`
@@ -55,7 +56,7 @@ aegixai command "show failed services"
 aegixai grow --json
 ```
 
-The preview VM attempts to pull `qwen3.5:0.8b` through `aegix-ollama-model-pull.service`. If the VM is offline, boot continues and `aegixai status --json` reports the degraded model state.
+The preview VM attempts to pull `tinyllama` and `qwen3.5:0.8b` through `aegix-ollama-model-pull.service`. If the VM is offline, boot continues and `aegixai status --json` reports the degraded model state.
 
 On the preview VM, the first local inference can be slow because QEMU may fall back to software emulation. Use:
 

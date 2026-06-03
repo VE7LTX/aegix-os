@@ -156,6 +156,7 @@ EOF
   services.logrotate.enable = false;
   environment.variables.AEGIX_ROOT = "/aegix";
   environment.variables.AEGIX_AI_MODEL = "qwen3.5:0.8b";
+  environment.variables.AEGIX_AI_FALLBACK_MODEL = "tinyllama";
   environment.variables.OLLAMA_HOST = "http://127.0.0.1:11434";
   environment.shellAliases = {
     aegix-status = "agentctl status --json";
@@ -435,11 +436,11 @@ EOF
       set +e
       ${pkgs.coreutils}/bin/mkdir -p /aegix/models/growth /aegix/logs
       ${pkgs.coreutils}/bin/date --iso-8601=seconds > /aegix/logs/ollama-model-pull.log
-      ${pkgs.ollama}/bin/ollama pull qwen3.5:0.8b >> /aegix/logs/ollama-model-pull.log 2>&1
-      rc=$?
-      if [ "$rc" -ne 0 ]; then
-        echo "model pull failed or offline; aegixai will report degraded status" >> /aegix/logs/ollama-model-pull.log
-      fi
+      for model in tinyllama qwen3.5:0.8b; do
+        echo "pulling $model" >> /aegix/logs/ollama-model-pull.log
+        ${pkgs.ollama}/bin/ollama pull "$model" >> /aegix/logs/ollama-model-pull.log 2>&1 || true
+      done
+      echo "model pull attempted for fallback and primary models; aegixai will report degraded status if offline" >> /aegix/logs/ollama-model-pull.log
       exit 0
     '';
   };

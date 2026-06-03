@@ -25,19 +25,42 @@ def main() -> int:
             encoding="utf-8",
         )
 
-        fake_ai = root / "fake_aegixai.py"
+        fake_ai = root / "fake_chat_backend.py"
+        request_log = root / "chat-requests.jsonl"
+        state_file = root / "chat-state.txt"
         fake_ai.write_text(
             """#!/usr/bin/env python3
-import json
-import sys
+from __future__ import annotations
 
-prompt = " ".join(sys.argv[sys.argv.index('ask') + 1:-1])
-print(json.dumps({
-    "command": "ask",
-    "response": "memory load is moderate",
-    "prompt_seen": prompt,
-    "model": "stub-model",
-}))
+import json
+import os
+import sys
+from pathlib import Path
+
+
+state_file = Path(os.environ["FAKE_CHAT_STATE"])
+request_log = Path(os.environ["FAKE_CHAT_LOG"])
+count = int(state_file.read_text(encoding="utf-8")) if state_file.exists() else 0
+request = json.load(sys.stdin)
+request_log.parent.mkdir(parents=True, exist_ok=True)
+with request_log.open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps(request, sort_keys=True) + "\\n")
+
+if count == 0:
+    content = {
+        "tool_calls": [
+            {"name": "procfs.telemetry", "arguments": {}}
+        ],
+        "final_answer": None,
+    }
+else:
+    content = {
+        "tool_calls": [],
+        "final_answer": "RAM usage comes from procfs after the tool call.",
+    }
+
+state_file.write_text(str(count + 1), encoding="utf-8")
+print(json.dumps({"message": {"role": "assistant", "content": json.dumps(content)}}))
 """,
             encoding="utf-8",
         )
@@ -46,10 +69,22 @@ print(json.dumps({
         env["AEGIX_ROOT"] = str(root)
         env["AEGIX_OBSIDIAN_VAULT"] = str(root / "notes" / "obsidian")
         env["AEGIX_QUERY_CONTEXT_FILE"] = str(tail_file)
-        env["AEGIX_QUERY_AEGIXAI"] = f'"{sys.executable}" "{fake_ai}"'
+        env["AEGIX_QUERY_CHAT_CMD"] = f'"{sys.executable}" "{fake_ai}"'
+        env["FAKE_CHAT_STATE"] = str(state_file)
+        env["FAKE_CHAT_LOG"] = str(request_log)
+        env["AEGIX_QUERY_TELEMETRY_JSON"] = json.dumps(
+            {
+                "ram_used_bytes": 123456789,
+                "ram_total_bytes": 987654321,
+                "ram_available_bytes": 864197532,
+                "loadavg": [0.12, 0.34, 0.56],
+                "uptime_seconds": 3723,
+                "source": "test-override",
+            }
+        )
 
         result = subprocess.run(
-            [sys.executable, str(QUERY), "--root", str(root), "--json", "what", "should", "I", "inspect", "first"],
+            [sys.executable, str(QUERY), "--root", str(root), "--json", "what", "is", "the", "ram", "usage", "right", "now"],
             check=False,
             capture_output=True,
             text=True,
@@ -59,14 +94,27 @@ print(json.dumps({
             raise AssertionError(f"query failed: rc={result.returncode}\nstdout={result.stdout}\nstderr={result.stderr}")
 
         payload = json.loads(result.stdout)
-        assert payload["executed"] is False
-        assert payload["response"] == "memory load is moderate"
+        assert payload["mode"] == "tool-calling"
+        assert payload["response"] == "RAM usage comes from procfs after the tool call."
         assert Path(payload["tail_path"]).exists()
         note_path = Path(payload["note_path"])
         assert note_path.exists()
+        assert payload["tool_trace"], payload
+        first_call = payload["tool_trace"][0]
+        assert first_call["call"]["name"] == "procfs.telemetry"
+        assert first_call["observation"]["ram_total_bytes"] == 987654321
+        assert first_call["observation"]["source"] == "test-override"
+
+        requests = request_log.read_text(encoding="utf-8").strip().splitlines()
+        assert len(requests) == 2, requests
+        first_request = json.loads(requests[0])
+        second_request = json.loads(requests[1])
+        assert first_request["messages"][0]["role"] == "system"
+        assert "Available tools" in first_request["messages"][0]["content"]
+        assert any("Tool observations" in message.get("content", "") for message in second_request["messages"]), second_request
 
         indexed = subprocess.run(
-            [sys.executable, str(REPO / "tools" / "agentctl" / "agentctl.py"), "--root", str(root), "search-index", "inspect first", "--json"],
+            [sys.executable, str(REPO / "tools" / "agentctl" / "agentctl.py"), "--root", str(root), "search-index", "ram usage", "--json"],
             check=False,
             capture_output=True,
             text=True,
@@ -87,29 +135,6 @@ print(json.dumps({
         graph_payload = json.loads(graph.stdout)
         assert graph_payload["summary"]["files_indexed"] >= 1
         assert Path(graph_payload["vector_registry_path"]).exists()
-
-        telemetry_env = env.copy()
-        telemetry_env["AEGIX_QUERY_TELEMETRY_JSON"] = json.dumps(
-            {
-                "ram_used_bytes": 123456789,
-                "ram_total_bytes": 987654321,
-                "ram_available_bytes": 864197532,
-                "loadavg": [0.12, 0.34, 0.56],
-                "uptime_seconds": 3723,
-            }
-        )
-        direct = subprocess.run(
-            [sys.executable, str(QUERY), "--root", str(root), "--json", "what", "is", "the", "ram", "usage", "right", "now"],
-            check=False,
-            capture_output=True,
-            text=True,
-            env=telemetry_env,
-        )
-        assert direct.returncode == 0, direct.stderr
-        direct_payload = json.loads(direct.stdout)
-        assert direct_payload["mode"] == "direct-telemetry"
-        assert "RAM usage right now" in direct_payload["response"]
-        assert direct_payload["telemetry"]["ram_total_bytes"] == 987654321
 
     return 0
 

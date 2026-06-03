@@ -35,6 +35,10 @@ Agents should get documented commands and APIs for common system work:
 - MCP servers
 - local API servers
 - plugin registry
+- local model services
+- database services
+- vector storage
+- time-series storage
 - workspace state
 
 Mouse and keyboard automation should be a fallback, not the normal control path.
@@ -75,6 +79,8 @@ The default filesystem should be predictable:
   commands/
   projects/
   memory/
+  models/
+  data/
   notes/
   mcp/
   api/
@@ -275,12 +281,46 @@ Profiles should have separate cookies, downloads, history, and permissions.
 
 Default local model profile should support:
 
-- Ollama or llama.cpp adapter
+- Ollama service
+- llama.cpp adapter
 - model cache directory
 - model registry notes
 - local/cloud routing policy
 - data classification rules
 - cost and budget controls
+
+Ollama should be available as the first local model service because it gives agents a simple local API for model discovery and inference. The default Aegix posture should bind Ollama to localhost, store model state under `/aegix/models/ollama`, and require explicit policy before exposing it to the LAN.
+
+See [LOCAL_MODELS.md](LOCAL_MODELS.md) for the service profile.
+
+### Data service suite
+
+Aegix should include a documented data service suite because agents need boring storage for memory, indexes, metrics, receipts, queues, and local application state.
+
+Default data paths:
+
+```text
+/aegix/data/
+  sqlite/
+  postgres/
+  vector/
+  timeseries/
+  cache/
+  warehouse/
+```
+
+Default options:
+
+- SQLite for local app state, task state, and small indexes
+- Postgres for durable multi-user/project services
+- DuckDB for local analytical work
+- Redis-compatible cache/queue where needed
+- Qdrant or equivalent vector storage for embeddings over canonical files
+- Prometheus-compatible time-series storage for metrics and service health
+
+Vector storage is an index, not the source of truth. Obsidian Markdown, project files, receipts, and structured DB records remain canonical.
+
+See [DATA_SERVICES.md](DATA_SERVICES.md) for the storage profiles.
 
 ### Documentation rules
 
@@ -354,6 +394,11 @@ The first practical build should make these commands real:
 - `agentctl api`
 - `agentctl router`
 - `agentctl appliances`
+- `agentctl models`
+- `agentctl ollama`
+- `agentctl db`
+- `agentctl vector`
+- `agentctl timeseries`
 - `agentctl screenshot`
 - `agentctl logs`
 - `agentctl services`

@@ -23,10 +23,57 @@ in
       default = "/aegix";
       description = "Root directory for Aegix agent state, receipts, policy, and logs.";
     };
+
+    ollama = {
+      enable = lib.mkEnableOption "Ollama local model service for Aegix agents";
+
+      package = lib.mkOption {
+        type = lib.types.package;
+        default = pkgs.ollama;
+        description = "Ollama package to install and run.";
+      };
+
+      host = lib.mkOption {
+        type = lib.types.str;
+        default = "127.0.0.1";
+        description = "Address for the Ollama service to bind.";
+      };
+
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 11434;
+        description = "Port for the Ollama service.";
+      };
+
+      openFirewall = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Whether to open the Ollama port in the host firewall.";
+      };
+    };
+
+    data = {
+      enable = lib.mkEnableOption "Aegix database, vector, and time-series tool suite";
+
+      packages = lib.mkOption {
+        type = lib.types.listOf lib.types.package;
+        default = with pkgs; [
+          sqlite
+          postgresql
+          duckdb
+          redis
+          qdrant
+          prometheus
+        ];
+        description = "Database and data-service tools to expose in the Aegix profile.";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = [ cfg.package ];
+    environment.systemPackages = [ cfg.package ]
+      ++ lib.optionals cfg.ollama.enable [ cfg.ollama.package ]
+      ++ lib.optionals cfg.data.enable cfg.data.packages;
 
     users.groups.aegix = { };
     users.users.aegix = {
@@ -42,6 +89,15 @@ in
       "d ${cfg.root}/agents 0750 aegix aegix - -"
       "d ${cfg.root}/commands 0750 aegix aegix - -"
       "d ${cfg.root}/memory 0750 aegix aegix - -"
+      "d ${cfg.root}/models 0750 aegix aegix - -"
+      "d ${cfg.root}/models/ollama 0750 aegix aegix - -"
+      "d ${cfg.root}/data 0750 aegix aegix - -"
+      "d ${cfg.root}/data/sqlite 0750 aegix aegix - -"
+      "d ${cfg.root}/data/postgres 0750 aegix aegix - -"
+      "d ${cfg.root}/data/vector 0750 aegix aegix - -"
+      "d ${cfg.root}/data/timeseries 0750 aegix aegix - -"
+      "d ${cfg.root}/data/cache 0750 aegix aegix - -"
+      "d ${cfg.root}/data/warehouse 0750 aegix aegix - -"
       "d ${cfg.root}/notes 0750 aegix aegix - -"
       "d ${cfg.root}/notes/obsidian 0750 aegix aegix - -"
       "d ${cfg.root}/mcp 0750 aegix aegix - -"
@@ -71,5 +127,15 @@ in
         ${cfg.package}/bin/agentctl status
       '';
     };
+
+    services.ollama = lib.mkIf cfg.ollama.enable {
+      enable = true;
+      package = cfg.ollama.package;
+      host = cfg.ollama.host;
+      port = cfg.ollama.port;
+    };
+
+    networking.firewall.allowedTCPPorts =
+      lib.mkIf cfg.ollama.openFirewall [ cfg.ollama.port ];
   };
 }

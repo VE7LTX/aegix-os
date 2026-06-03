@@ -22,6 +22,8 @@
 - terminal/TUI operator tools
 - MCP/API server profile
 - plugin registry
+- Ollama local model service profile
+- database/vector/time-series service profile
 - documented shortcut command registry
 - JSONL receipts
 - read-only observer agent
@@ -36,6 +38,9 @@
 - secret broker
 - workspace snapshots
 - local model router
+- Ollama health/model inventory commands
+- database service inventory commands
+- vector and time-series service inventory commands
 
 ## Phase 3: Hardened Runtime
 

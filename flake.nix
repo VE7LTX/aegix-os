@@ -33,6 +33,13 @@
             glow
             just
             sd
+            sqlite
+            postgresql
+            duckdb
+            redis
+            qdrant
+            prometheus
+            ollama
             podman
             python312
             python312Packages.typer

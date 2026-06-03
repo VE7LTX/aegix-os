@@ -20,6 +20,8 @@ Aegix OS should be a preconfigured operating environment for local AI work:
 - OpenClaw runs as a managed suite component with clear permissions
 - Obsidian provides the standard local AI memory vault for runbooks, decisions, project memory, receipts, and handoffs
 - plugin, MCP, and local API servers are treated as first-class AI access surfaces
+- local model services start with Ollama as a localhost-first model API
+- database services include SQLite, Postgres, vector storage, and time-series storage options
 - network/router and appliance controls are exposed through documented commands with approval gates
 - safety boundaries are visible when actions touch secrets, services, external writes, or host state
 
@@ -43,6 +45,7 @@ The primary kit is tracked in [docs/PRIMARY_KIT.md](docs/PRIMARY_KIT.md). It cur
 - browser automation profiles
 - developer tools
 - local model tools
+- database, vector storage, and time-series tools
 - system dashboard target
 - documentation rules
 - safety, backup, and rollback defaults
@@ -89,6 +92,8 @@ The MVP is not a polished desktop distro. It is a reproducible agent workstation
 - OpenClaw managed profile
 - MCP/API server profile
 - plugin/tool registry
+- Ollama service profile
+- database/vector/time-series profile
 - File-backed memory directories
 - JSONL and Markdown receipts
 - Read-only observer agent
@@ -102,6 +107,7 @@ The MVP is not a polished desktop distro. It is a reproducible agent workstation
 - Browser automation profiles
 - VS Code and developer tool profile
 - Local model profile
+- Data service profile
 - Dashboard/TUI for agents, commands, receipts, approvals, and system health
 
 ### Phase 3: Hardened runtime
@@ -151,6 +157,13 @@ OpenClaw gets the benefit of local tools. Aegix owns the boundary.
   commands/
   projects/
   memory/
+  models/
+    ollama/
+  data/
+    sqlite/
+    postgres/
+    vector/
+    timeseries/
   notes/
     obsidian/
   mcp/

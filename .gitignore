@@ -1,0 +1,13 @@
+.direnv/
+.result
+result
+*.qcow2
+*.img
+*.iso
+.env
+.env.*
+secrets/
+node_modules/
+__pycache__/
+.pytest_cache/
+.DS_Store

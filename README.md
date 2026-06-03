@@ -230,7 +230,7 @@ nix run .#obsidianctl -- path
 nix run .#aegix-vm
 ```
 
-`agentctl`, `obsidianctl`, and `aegix-vm` are scaffold commands today. They exist to keep the repository evaluable while the appliance implementation lands behind the public interface.
+`agentctl` and `obsidianctl` are scaffold commands today. `aegix-vm` builds the preview NixOS VM described in [docs/PREVIEW_VM.md](docs/PREVIEW_VM.md).
 
 ## License
 

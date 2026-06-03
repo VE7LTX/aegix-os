@@ -65,10 +65,13 @@
 
         packages.aegix-vm = pkgs.writeShellApplication {
           name = "aegix-vm";
+          runtimeInputs = [ pkgs.nix ];
           text = ''
-            echo "Aegix VM scaffold"
-            echo "The NixOS VM profile is not implemented yet."
-            echo "Next target: add nixosConfigurations.aegix-vm and a runnable VM app."
+            echo "Building Aegix preview VM..."
+            nix build ${self}#nixosConfigurations.aegix-preview.config.system.build.vm -L
+            echo
+            echo "Preview VM built."
+            echo "Run it with: ./result/bin/run-aegix-preview-vm"
           '';
         };
 
@@ -76,5 +79,13 @@
       }
     ) // {
       nixosModules.aegix = import ./nixos/modules/aegix.nix;
+      nixosConfigurations.aegix-preview = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit self; };
+        modules = [
+          ./nixos/modules/aegix.nix
+          ./nixos/hosts/aegix-preview/configuration.nix
+        ];
+      };
     };
 }

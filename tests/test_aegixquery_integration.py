@@ -49,7 +49,7 @@ print(json.dumps({
         env["AEGIX_QUERY_AEGIXAI"] = f'"{sys.executable}" "{fake_ai}"'
 
         result = subprocess.run(
-            [sys.executable, str(QUERY), "--root", str(root), "--json", "what", "is", "the", "memory", "load", "right", "now"],
+            [sys.executable, str(QUERY), "--root", str(root), "--json", "what", "should", "I", "inspect", "first"],
             check=False,
             capture_output=True,
             text=True,
@@ -66,7 +66,7 @@ print(json.dumps({
         assert note_path.exists()
 
         indexed = subprocess.run(
-            [sys.executable, str(REPO / "tools" / "agentctl" / "agentctl.py"), "--root", str(root), "search-index", "memory load", "--json"],
+            [sys.executable, str(REPO / "tools" / "agentctl" / "agentctl.py"), "--root", str(root), "search-index", "inspect first", "--json"],
             check=False,
             capture_output=True,
             text=True,
@@ -87,6 +87,29 @@ print(json.dumps({
         graph_payload = json.loads(graph.stdout)
         assert graph_payload["summary"]["files_indexed"] >= 1
         assert Path(graph_payload["vector_registry_path"]).exists()
+
+        telemetry_env = env.copy()
+        telemetry_env["AEGIX_QUERY_TELEMETRY_JSON"] = json.dumps(
+            {
+                "ram_used_bytes": 123456789,
+                "ram_total_bytes": 987654321,
+                "ram_available_bytes": 864197532,
+                "loadavg": [0.12, 0.34, 0.56],
+                "uptime_seconds": 3723,
+            }
+        )
+        direct = subprocess.run(
+            [sys.executable, str(QUERY), "--root", str(root), "--json", "what", "is", "the", "ram", "usage", "right", "now"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=telemetry_env,
+        )
+        assert direct.returncode == 0, direct.stderr
+        direct_payload = json.loads(direct.stdout)
+        assert direct_payload["mode"] == "direct-telemetry"
+        assert "RAM usage right now" in direct_payload["response"]
+        assert direct_payload["telemetry"]["ram_total_bytes"] == 987654321
 
     return 0
 

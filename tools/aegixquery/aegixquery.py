@@ -24,6 +24,7 @@ DEFAULT_NUM_PREDICT = int(os.environ.get("AEGIX_AI_NUM_PREDICT", "192"))
 DEFAULT_CONTEXT_FILE = os.environ.get("AEGIX_QUERY_CONTEXT_FILE")
 DEFAULT_AEGIXAI = os.environ.get("AEGIX_QUERY_AEGIXAI")
 DEFAULT_AGENTCTL = os.environ.get("AEGIX_QUERY_AGENTCTL")
+DEFAULT_TELEMETRY_JSON = os.environ.get("AEGIX_QUERY_TELEMETRY_JSON")
 
 
 def split_command(value: str | None) -> list[str] | None:
@@ -71,6 +72,91 @@ def redact(text: str) -> str:
     for pattern, replacement in patterns:
         redacted = pattern.sub(replacement, redacted)
     return redacted
+
+
+def telemetry_question(prompt: str) -> bool:
+    lowered = prompt.lower()
+    return bool(
+        re.search(r"\b(ram|memory usage|memory load|used memory|available memory|free memory)\b", lowered)
+        or re.search(r"\b(load average|load avg|cpu usage|disk usage|disk free|uptime)\b", lowered)
+    )
+
+
+def parse_meminfo() -> dict[str, int]:
+    meminfo: dict[str, int] = {}
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            key, _, value = line.partition(":")
+            if not value:
+                continue
+            match = re.search(r"(\d+)", value)
+            if match:
+                meminfo[key] = int(match.group(1)) * 1024
+    except OSError:
+        return {}
+    return meminfo
+
+
+def collect_telemetry() -> dict[str, Any]:
+    if DEFAULT_TELEMETRY_JSON:
+        try:
+            return json.loads(DEFAULT_TELEMETRY_JSON)
+        except json.JSONDecodeError:
+            pass
+
+    meminfo = parse_meminfo()
+    total = meminfo.get("MemTotal")
+    available = meminfo.get("MemAvailable")
+    used = (total - available) if total is not None and available is not None else None
+    loadavg = []
+    try:
+        loadavg = [float(part) for part in Path("/proc/loadavg").read_text(encoding="utf-8").split()[:3]]
+    except OSError:
+        loadavg = []
+    uptime = None
+    try:
+        uptime = Path("/proc/uptime").read_text(encoding="utf-8").split()[0]
+    except OSError:
+        uptime = None
+    return {
+        "ram_total_bytes": total,
+        "ram_available_bytes": available,
+        "ram_used_bytes": used,
+        "loadavg": loadavg,
+        "uptime_seconds": float(uptime) if uptime else None,
+        "source": "procfs",
+    }
+
+
+def human_bytes(value: int | None) -> str:
+    if value is None:
+        return "unknown"
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    num = float(value)
+    for unit in units:
+        if num < 1024 or unit == units[-1]:
+            return f"{num:.1f} {unit}"
+        num /= 1024
+    return f"{value} B"
+
+
+def format_telemetry(prompt: str, telemetry: dict[str, Any]) -> str:
+    total = telemetry.get("ram_total_bytes")
+    available = telemetry.get("ram_available_bytes")
+    used = telemetry.get("ram_used_bytes")
+    loadavg = telemetry.get("loadavg") or []
+    parts = [
+        f"RAM usage right now: {human_bytes(used)} used / {human_bytes(total)} total",
+        f"Available: {human_bytes(available)}",
+    ]
+    if total and used is not None:
+        parts.append(f"Utilization: {used / total:.1%}")
+    if loadavg:
+        parts.append("Load average: " + ", ".join(f"{value:.2f}" for value in loadavg))
+    uptime = telemetry.get("uptime_seconds")
+    if uptime is not None:
+        parts.append(f"Uptime: {int(uptime // 3600)}h {int((uptime % 3600) // 60)}m")
+    return "\n".join(parts)
 
 
 def read_text(path: Path, default: str = "") -> str:
@@ -225,6 +311,31 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    telemetry = None
+    if telemetry_question(prompt):
+        telemetry = collect_telemetry()
+        response = format_telemetry(prompt, telemetry)
+        vault = obsidian_vault(root)
+        vault.mkdir(parents=True, exist_ok=True)
+        note_path = write_chat_note(vault, prompt, tail_text, response, args.model, root)
+        index_result = None
+        agentctl_cmd = find_agentctl()
+        if agentctl_cmd is not None:
+            index_result = run_json([*agentctl_cmd, "--root", str(root), "index", "--scope", str(root / "notes"), "--json"])
+        final_payload = {
+            "command": "query",
+            "prompt": prompt,
+            "response": response,
+            "tail_path": str(tail_path),
+            "note_path": str(note_path),
+            "model": args.model,
+            "executed": False,
+            "mode": "direct-telemetry",
+            "telemetry": telemetry,
+            "index_result": index_result,
+        }
+        return emit(args, final_payload, 0)
+
     aegixai_cmd = find_aegixai()
     if aegixai_cmd is None:
         return emit(args, {"error": "aegixai command not found"}, 1)
@@ -273,6 +384,7 @@ def main(argv: list[str] | None = None) -> int:
         "note_path": str(note_path),
         "model": args.model,
         "executed": False,
+        "mode": "local-ai",
         "aegixai": payload,
         "index_result": index_result,
     }

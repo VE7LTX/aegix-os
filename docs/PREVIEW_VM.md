@@ -8,6 +8,7 @@ It includes:
 
 - `/aegix` filesystem layout
 - `agentctl`
+- `codexcli` and `codex`
 - `obsidianctl`
 - Obsidian vault folders
 - Ollama service profile
@@ -38,6 +39,7 @@ Early firmware lines from SeaBIOS, iPXE, or QEMU are expected in this VM preview
 ```bash
 agentctl status --json
 agentctl commands --json
+codexcli --version
 obsidianctl path --json
 obsidianctl search Aegix --json
 systemctl status aegix-agentd

@@ -63,6 +63,28 @@
           '';
         };
 
+        packages.codexcli = pkgs.writeShellApplication {
+          name = "codexcli";
+          runtimeInputs = [ pkgs.nodejs pkgs.git ];
+          text = ''
+            export NPM_CONFIG_CACHE="''${NPM_CONFIG_CACHE:-''${XDG_CACHE_HOME:-$HOME/.cache}/aegix/npm}"
+            export NPM_CONFIG_AUDIT=false
+            export NPM_CONFIG_FUND=false
+            export NPM_CONFIG_UPDATE_NOTIFIER=false
+            export NO_UPDATE_NOTIFIER=1
+            export npm_config_cache="$NPM_CONFIG_CACHE"
+            exec npm exec --yes --package @openai/codex@0.136.0 -- codex "$@"
+          '';
+        };
+
+        packages.codex = pkgs.writeShellApplication {
+          name = "codex";
+          runtimeInputs = [ self.packages.${system}.codexcli ];
+          text = ''
+            exec codexcli "$@"
+          '';
+        };
+
         packages.aegix-vm = pkgs.writeShellApplication {
           name = "aegix-vm";
           runtimeInputs = [ pkgs.nix ];

@@ -19,6 +19,7 @@ COMMANDS = [
     "rollback",
     "receipts",
     "notes",
+    "codex",
     "openclaw",
     "obsidian",
     "tui",

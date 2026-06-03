@@ -11,6 +11,7 @@
   time.timeZone = "America/Vancouver";
 
   boot.consoleLogLevel = 3;
+  boot.loader.grub.devices = [ "nodev" ];
   boot.kernelParams = [
     "quiet"
     "loglevel=3"
@@ -18,6 +19,11 @@
     "systemd.show_status=auto"
     "udev.log_level=3"
   ];
+
+  fileSystems."/" = {
+    device = "/dev/disk/by-label/nixos";
+    fsType = "ext4";
+  };
 
   users.users.operator = {
     isNormalUser = true;
@@ -47,6 +53,7 @@
 
     Quick checks:
       agentctl status --json
+      codexcli --version
       obsidianctl path --json
       obsidianctl search Aegix --json
       systemctl status ollama
@@ -68,6 +75,8 @@
 
   environment.systemPackages = with pkgs; [
     self.packages.${pkgs.system}.agentctl
+    self.packages.${pkgs.system}.codex
+    self.packages.${pkgs.system}.codexcli
     self.packages.${pkgs.system}.obsidianctl
     bashInteractive
     bat
@@ -136,6 +145,7 @@ Try:
 ```bash
 agentctl status --json
 agentctl commands --json
+codexcli --version
 obsidianctl path --json
 obsidianctl search Aegix --json
 systemctl status aegix-agentd

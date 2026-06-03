@@ -8,6 +8,8 @@ These should be available in the base developer/operator profile:
 
 - `agentctl` for Aegix sessions, receipts, commands, approvals, and system views
 - `obsidianctl` for Obsidian AI memory vault operations
+- `codexcli` for Codex CLI access through the Aegix operator environment
+- `codex` as a compatibility alias for operators who expect the upstream command name
 - `git` for source control
 - `ripgrep` for fast text search
 - `fd` for file discovery
@@ -41,6 +43,19 @@ These should be available where a terminal interface is useful:
 - `obsidianctl search "text"`
 
 The GUI Obsidian app can be installed separately, but agents should write and inspect memory through file-backed Markdown and `obsidianctl` first.
+
+## Codex CLI standard
+
+`codexcli` is the Aegix-owned entrypoint for Codex CLI. It currently bootstraps the pinned npm package `@openai/codex@0.136.0` through Node/npm and keeps npm cache data under the operator cache path by default.
+
+The compatibility command `codex` should remain available, but Aegix docs and receipts should prefer `codexcli` so policies can distinguish the distro-managed entrypoint from any host-installed Codex command.
+
+Planned Aegix policy behavior:
+
+- launch Codex inside a scoped project workspace
+- route file, shell, network, and secret access through the capability broker
+- write receipts for agent actions
+- expose version and auth status through `agentctl codex`
 
 ## Agent rules
 

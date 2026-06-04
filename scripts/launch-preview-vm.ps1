@@ -135,6 +135,7 @@ pid_file="$repo/.aegix-preview-vm.pid"
 cp "$run_script_source" "$run_script_target"
 sed -i -E "s/-m [0-9]+/-m $memory/" "$run_script_target"
 sed -i -E "s/-smp [0-9]+/-smp $cpus/" "$run_script_target"
+sed -i -E 's/[[:space:]]+-nographic([[:space:]]|$)/ -display none -serial stdio -monitor none /' "$run_script_target"
 chmod +x "$run_script_target"
 printf '%s\n' "$$" > "$pid_file"
 

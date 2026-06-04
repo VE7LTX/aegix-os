@@ -27,14 +27,22 @@ function Get-AegixVmPid {
   $oldPreference = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
-    $pidText = & wsl -d Ubuntu-22.04 -- bash -lc "if [ -f '$wslPidFile' ]; then cat '$wslPidFile'; fi" 2>$null
-    $pidText = ($pidText | Select-Object -First 1).ToString().Trim()
+    $pidTextOutput = @(& wsl -d Ubuntu-22.04 -- bash -lc "if [ -f '$wslPidFile' ]; then cat '$wslPidFile'; fi" 2>$null)
+    $pidText = if ($pidTextOutput.Count -gt 0 -and $null -ne $pidTextOutput[0]) {
+      $pidTextOutput[0].ToString().Trim()
+    } else {
+      ""
+    }
     if (-not $pidText -or $pidText -notmatch '^\d+$') {
       return $null
     }
 
-    $argsLine = & wsl -d Ubuntu-22.04 -- bash -lc "ps -p $pidText -o args= 2>/dev/null || true" 2>$null
-    $argsLine = ($argsLine | Select-Object -First 1).ToString()
+    $argsOutput = @(& wsl -d Ubuntu-22.04 -- bash -lc "ps -p $pidText -o args= 2>/dev/null || true" 2>$null)
+    $argsLine = if ($argsOutput.Count -gt 0 -and $null -ne $argsOutput[0]) {
+      $argsOutput[0].ToString()
+    } else {
+      ""
+    }
     if ($argsLine -match 'qemu-system-x86_64.*aegix-preview') {
       return [int]$pidText
     }

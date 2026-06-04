@@ -1,6 +1,7 @@
 param(
     [int]$MemoryMB = 24576,
     [int]$Cpus = 6,
+    [switch]$Rebuild,
     [switch]$Gpu,
     [switch]$Ollama
 )
@@ -118,6 +119,19 @@ function Invoke-AegixBuild {
   }
 }
 
+function Test-AegixVmArtifact {
+  param([string]$WslRepo)
+
+  $oldErrorAction = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    & wsl -d Ubuntu-22.04 -- bash -lc "test -x '$WslRepo/result/bin/run-aegix-preview-vm'"
+    return ($LASTEXITCODE -eq 0)
+  } finally {
+    $ErrorActionPreference = $oldErrorAction
+  }
+}
+
 function Invoke-AegixRun {
   param([int]$Memory, [int]$Cpus, [string]$WslRepo)
 
@@ -165,7 +179,12 @@ exec "$run_script_target"
   }
 }
 
-Invoke-AegixBuild -Package $vmPackage -WslRepo $wslRepo -Memory $effectiveMemoryMB -Cpus $Cpus
+$hasExistingArtifact = Test-AegixVmArtifact -WslRepo $wslRepo
+if ($Rebuild -or -not $hasExistingArtifact) {
+  Invoke-AegixBuild -Package $vmPackage -WslRepo $wslRepo -Memory $effectiveMemoryMB -Cpus $Cpus
+} else {
+  Write-Host "Using existing preview VM build. Pass -Rebuild to rebuild from current repo state."
+}
 
 $retryCandidates = @(Get-MemoryAttempts -StartMB $effectiveMemoryMB -MinimumMB $minMemoryMB)
 $lastAttempt = $null

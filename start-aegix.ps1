@@ -1,5 +1,6 @@
 param(
   [switch]$Restart,
+  [switch]$Rebuild,
   [switch]$Gpu,
   [switch]$Ollama,
   [int]$MemoryMB = 4096,
@@ -111,6 +112,7 @@ if ($Gpu -and $Ollama) {
 # be parsed as commands and fail.
 try {
   & $launchScript -MemoryMB $MemoryMB -Cpus $Cpus @(
+    if ($Rebuild) { "-Rebuild" }
     if ($Gpu) { "-Gpu" }
     if ($Ollama) { "-Ollama" }
   )
@@ -129,6 +131,7 @@ catch {
     "-Cpus"
     "$Cpus"
   )
+  if ($Rebuild) { $launchArgs += "-Rebuild" }
   if ($Gpu) { $launchArgs += "-Gpu" }
   if ($Ollama) { $launchArgs += "-Ollama" }
   & "$PSHOME\powershell.exe" @launchArgs

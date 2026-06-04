@@ -88,8 +88,9 @@
         printf '\n'
       fi
       if [ -z "$AEGIX_NO_TUI" ] && command -v aegixtui >/dev/null 2>&1; then
-        lines="$(tput lines 2>/dev/null || echo 0)"
-        cols="$(tput cols 2>/dev/null || echo 0)"
+        size_line="$(${pkgs.coreutils}/bin/stty size 2>/dev/null || echo '0 0')"
+        lines="${size_line%% *}"
+        cols="${size_line##* }"
         if [ "$lines" -ge 20 ] && [ "$cols" -ge 80 ]; then
           printf 'Press Space to continue to the operator TUI. Press q to return to shell later.\n'
           printf '\n'
@@ -473,7 +474,9 @@ EOF
         printf '\n## Setup Log\n\n'
         if [ -r /aegix/logs/ollama-model-pull.log ]; then
           printf '```text\n'
-          ${pkgs.coreutils}/bin/tail -n 200 /aegix/logs/ollama-model-pull.log
+          ${pkgs.coreutils}/bin/tail -n 200 /aegix/logs/ollama-model-pull.log \
+            | ${pkgs.gnused}/bin/sed -E 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' \
+            | ${pkgs.coreutils}/bin/tr -cd '\11\12\15\40-\176'
           printf '\n```\n'
         else
           printf '_No Ollama model-pull log found._\n'
@@ -514,7 +517,7 @@ EOF
       ${pkgs.coreutils}/bin/date --iso-8601=seconds > /aegix/logs/ollama-model-pull.log
       for model in tinyllama qwen3.5:0.8b; do
         echo "pulling $model" >> /aegix/logs/ollama-model-pull.log
-        ${pkgs.ollama}/bin/ollama pull "$model" >> /aegix/logs/ollama-model-pull.log 2>&1 || true
+        TERM=dumb NO_COLOR=1 ${pkgs.ollama}/bin/ollama pull "$model" >> /aegix/logs/ollama-model-pull.log 2>&1 || true
       done
       echo "model pull attempted for fallback and primary models; aegixai will report degraded status if offline" >> /aegix/logs/ollama-model-pull.log
       exit 0

@@ -111,11 +111,16 @@ if ($Gpu -and $Ollama) {
 # Some shells can pass .ps1 files as ad-hoc command text, which causes `param` blocks to
 # be parsed as commands and fail.
 try {
-  & $launchScript -MemoryMB $MemoryMB -Cpus $Cpus @(
-    if ($Rebuild) { "-Rebuild" }
-    if ($Gpu) { "-Gpu" }
-    if ($Ollama) { "-Ollama" }
+  $directLaunchArgs = @(
+    "-MemoryMB"
+    "$MemoryMB"
+    "-Cpus"
+    "$Cpus"
   )
+  if ($Rebuild) { $directLaunchArgs += "-Rebuild" }
+  if ($Gpu) { $directLaunchArgs += "-Gpu" }
+  if ($Ollama) { $directLaunchArgs += "-Ollama" }
+  & $launchScript @directLaunchArgs
 }
 catch {
   # Fallback for environments where direct script invocation is blocked.

@@ -56,6 +56,9 @@ try {
 
 if (-not $kvmAvailable) {
   Write-Host "KVM is not available in this WSL session. Aegix will use QEMU software emulation."
+  if ($Rebuild) {
+    Write-Host "Rebuild + software emulation is the slowest path. Use -Restart without -Rebuild for normal preview boots."
+  }
   if ($Cpus -gt $emulationCpuCeiling) {
     Write-Host "Clamping CPUs from $Cpus to $emulationCpuCeiling for TCG boot stability."
     $Cpus = $emulationCpuCeiling

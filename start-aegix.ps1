@@ -97,6 +97,9 @@ if ($Restart) {
 Write-Host "Starting Aegix preview VM..."
 Write-Host "Memory (MB): $MemoryMB"
 Write-Host "CPUs:      : $Cpus"
+if ($Rebuild) {
+  Write-Host "Rebuild:   : requested"
+}
 if ($Ollama -and -not $Gpu) {
   Write-Host "Starting Ollama-heavy VM profile (higher RAM/CPU)."
 }
@@ -107,37 +110,18 @@ if ($Gpu -and $Ollama) {
   Write-Host "Starting GPU + Ollama profile."
 }
 
-# Run as a direct script call so the child script has a normal `-File` invocation context.
-# Some shells can pass .ps1 files as ad-hoc command text, which causes `param` blocks to
-# be parsed as commands and fail.
-try {
-  $directLaunchArgs = @(
-    "-MemoryMB"
-    "$MemoryMB"
-    "-Cpus"
-    "$Cpus"
-  )
-  if ($Rebuild) { $directLaunchArgs += "-Rebuild" }
-  if ($Gpu) { $directLaunchArgs += "-Gpu" }
-  if ($Ollama) { $directLaunchArgs += "-Ollama" }
-  & $launchScript @directLaunchArgs
-}
-catch {
-  # Fallback for environments where direct script invocation is blocked.
-  Write-Host "Direct launch invocation failed; retrying in a fresh PowerShell process."
-  $launchArgs = @(
-    "-NoProfile"
-    "-ExecutionPolicy"
-    "Bypass"
-    "-File"
-    $launchScript
-    "-MemoryMB"
-    "$MemoryMB"
-    "-Cpus"
-    "$Cpus"
-  )
-  if ($Rebuild) { $launchArgs += "-Rebuild" }
-  if ($Gpu) { $launchArgs += "-Gpu" }
-  if ($Ollama) { $launchArgs += "-Ollama" }
-  & "$PSHOME\powershell.exe" @launchArgs
-}
+$launchArgs = @(
+  "-NoProfile"
+  "-ExecutionPolicy"
+  "Bypass"
+  "-File"
+  $launchScript
+  "-MemoryMB"
+  "$MemoryMB"
+  "-Cpus"
+  "$Cpus"
+)
+if ($Rebuild) { $launchArgs += "-Rebuild" }
+if ($Gpu) { $launchArgs += "-Gpu" }
+if ($Ollama) { $launchArgs += "-Ollama" }
+& "$PSHOME\powershell.exe" @launchArgs

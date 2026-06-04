@@ -2,6 +2,8 @@
 .result
 result
 .aegix-preview-vm.pid
+.aegix-host/
+.aegix-host-test/
 *.qcow2
 *.img
 *.iso

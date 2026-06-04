@@ -457,7 +457,7 @@ EOF
   systemd.services.aegix-startup-log = {
     description = "Write Aegix startup summary";
     wantedBy = [ "multi-user.target" ];
-    after = [ "aegix-preview-note.service" "aegix-ollama-model-pull.service" "systemd-tmpfiles-setup.service" ];
+    after = [ "aegix-preview-note.service" "systemd-tmpfiles-setup.service" ];
     serviceConfig = {
       Type = "oneshot";
       User = "operator";
@@ -502,7 +502,6 @@ EOF
 
   systemd.services.aegix-ollama-model-pull = {
     description = "Pull Aegix default local Ollama model";
-    wantedBy = [ "multi-user.target" ];
     after = [ "ollama.service" "network-online.target" "aegix-preview-note.service" ];
     wants = [ "network-online.target" ];
     serviceConfig = {
@@ -526,7 +525,6 @@ EOF
 
   systemd.services.aegix-index-refresh = {
     description = "Refresh Aegix file graph and text index";
-    wantedBy = [ "multi-user.target" ];
     after = [ "aegix-preview-note.service" "systemd-tmpfiles-setup.service" ];
     serviceConfig = {
       Type = "oneshot";
@@ -542,9 +540,18 @@ EOF
     description = "Periodic Aegix file index refresh";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnBootSec = "2min";
+      OnBootSec = "45s";
       OnUnitActiveSec = "30min";
       Unit = "aegix-index-refresh.service";
+    };
+  };
+
+  systemd.timers.aegix-ollama-model-pull = {
+    description = "Deferred Aegix local model pull";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "90s";
+      Unit = "aegix-ollama-model-pull.service";
     };
   };
 }

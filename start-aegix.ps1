@@ -10,18 +10,56 @@ $ErrorActionPreference = "Stop"
 
 $repo = Split-Path -Parent $MyInvocation.MyCommand.Path
 $launchScript = Join-Path $repo "scripts\launch-preview-vm.ps1"
+$vmPidFile = Join-Path $repo ".aegix-preview-vm.pid"
 
 if (-not (Test-Path -LiteralPath $launchScript)) {
   throw "Could not find launcher: $launchScript"
 }
 
+function Get-AegixVmPid {
+  param(
+    [string]$RepoPath
+  )
+
+  $wslRepoPath = & wsl -d Ubuntu-22.04 -- wslpath -a "$RepoPath"
+  $wslPidFile = "$wslRepoPath/.aegix-preview-vm.pid"
+
+  $oldPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $pidText = & wsl -d Ubuntu-22.04 -- bash -lc "if [ -f '$wslPidFile' ]; then cat '$wslPidFile'; fi" 2>$null
+    $pidText = ($pidText | Select-Object -First 1).ToString().Trim()
+    if (-not $pidText -or $pidText -notmatch '^\d+$') {
+      return $null
+    }
+
+    $argsLine = & wsl -d Ubuntu-22.04 -- bash -lc "ps -p $pidText -o args= 2>/dev/null || true" 2>$null
+    $argsLine = ($argsLine | Select-Object -First 1).ToString()
+    if ($argsLine -match 'qemu-system-x86_64.*aegix-preview') {
+      return [int]$pidText
+    }
+
+    & wsl -d Ubuntu-22.04 -- bash -lc "rm -f '$wslPidFile'" 2>$null | Out-Null
+    return $null
+  } finally {
+    $ErrorActionPreference = $oldPreference
+  }
+}
+
+function Get-AegixVmProcessLine {
+  $oldPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    return (& wsl -d Ubuntu-22.04 -- bash -lc "ps -eo pid,args | grep '[q]emu-system-x86_64.*aegix-preview' || true" 2>$null)
+  } finally {
+    $ErrorActionPreference = $oldPreference
+  }
+}
+
 Write-Host "Aegix OS preview launcher"
 Write-Host "Workspace: $repo"
 
-$oldErrorActionPreference = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-$qemu = & wsl -d Ubuntu-22.04 -- bash -lc "ps -eo pid,args | grep '[q]emu-system-x86_64.*aegix-preview' || true" 2>$null
-$ErrorActionPreference = $oldErrorActionPreference
+$qemu = Get-AegixVmProcessLine
 if ($qemu -and -not $Restart) {
   Write-Host ""
   Write-Host "Aegix preview VM already appears to be running:"
@@ -34,10 +72,16 @@ if ($qemu -and -not $Restart) {
 
 if ($Restart) {
   Write-Host "Stopping any existing Aegix preview VM..."
-  $oldErrorActionPreference = $ErrorActionPreference
-  $ErrorActionPreference = "Continue"
-  & wsl -d Ubuntu-22.04 -- bash -lc "pkill -TERM -f 'qemu-system-x86_64.*aegix-preview' || true" 2>$null
-  $ErrorActionPreference = $oldErrorActionPreference
+  $wslVmPidFile = & wsl -d Ubuntu-22.04 -- wslpath -a "$vmPidFile"
+  $trackedPid = Get-AegixVmPid -RepoPath $repo
+  if ($trackedPid) {
+    & wsl -d Ubuntu-22.04 -- bash -lc "kill -TERM $trackedPid 2>/dev/null || true; rm -f '$wslVmPidFile'" 2>$null
+  } else {
+    $oldErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & wsl -d Ubuntu-22.04 -- bash -lc "pkill -TERM -f 'qemu-system-x86_64.*aegix-preview' || true" 2>$null
+    $ErrorActionPreference = $oldErrorActionPreference
+  }
   Start-Sleep -Seconds 2
 }
 

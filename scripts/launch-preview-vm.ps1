@@ -130,11 +130,13 @@ cpus="$3"
 
 run_script_source="$(readlink -f "$repo/result/bin/run-aegix-preview-vm")"
 run_script_target="$(mktemp -u "/tmp/run-aegix-preview-vm-${memory}M-${cpus}C-XXXXXX")"
+pid_file="$repo/.aegix-preview-vm.pid"
 
 cp "$run_script_source" "$run_script_target"
 sed -i -E "s/-m [0-9]+/-m $memory/" "$run_script_target"
 sed -i -E "s/-smp [0-9]+/-smp $cpus/" "$run_script_target"
 chmod +x "$run_script_target"
+printf '%s\n' "$$" > "$pid_file"
 
 echo "Launching preview VM with ${memory}MB memory and ${cpus} CPUs."
 exec "$run_script_target"

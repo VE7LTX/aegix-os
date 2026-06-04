@@ -89,8 +89,8 @@
       fi
       if [ -z "$AEGIX_NO_TUI" ] && command -v aegixtui >/dev/null 2>&1; then
         size_line="$(${pkgs.coreutils}/bin/stty size 2>/dev/null || echo '0 0')"
-        lines="${size_line%% *}"
-        cols="${size_line##* }"
+        lines="$(printf '%s\n' "$size_line" | ${pkgs.coreutils}/bin/cut -d ' ' -f 1)"
+        cols="$(printf '%s\n' "$size_line" | ${pkgs.coreutils}/bin/cut -d ' ' -f 2)"
         if [ "$lines" -ge 20 ] && [ "$cols" -ge 80 ]; then
           printf 'Press Space to continue to the operator TUI. Press q to return to shell later.\n'
           printf '\n'
